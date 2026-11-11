@@ -64,6 +64,19 @@ test('an ask answer keeps only sourced leads and drops unknown emails', () => {
   assert.match(askPrompt('Find operators', { SELLER_OFFERING: 'Routing software' }), /Routing software/);
 });
 
+test('a spreadsheet with inline text is read cell by cell', () => {
+  const xml = '<worksheet><sheetData><row><c t="inlineStr"><is><t>EdTech Academy</t></is></c><c t="inlineStr"><is><t>ada@school.example</t></is></c></row></sheetData></worksheet>';
+  const name = Buffer.from('xl/worksheets/sheet1.xml');
+  const data = Buffer.from(xml);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt16LE(name.length, 26);
+  const text = officeText(Buffer.concat([local, name, data]));
+  assert.match(text, /EdTech Academy/);
+  assert.match(text, /ada@school.example/);
+});
+
 test('office text is read out of a docx zip', () => {
   const xml = '<w:document><w:t>Northwind pump</w:t></w:document>';
   const name = Buffer.from('word/document.xml');
