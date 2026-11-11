@@ -6,6 +6,8 @@ import test from 'node:test';
 import { asCell, secretsMatch } from '../lib/safety.js';
 import { shouldDelegate } from '../lib/route.js';
 import { demoLeads } from '../lib/leads.js';
+import { askPrompt, parseLeadAnswer } from '../lib/ask.js';
+import { officeText } from '../lib/office.js';
 import { businessEnv, deskAuthorized, executeDryRun } from '../lib/desk-run.js';
 
 process.env.GOOGLE_WEBHOOK_URL = '';
@@ -42,6 +44,36 @@ test('demo leads do not invent an email address', () => {
   assert.equal(leads[0].negative, false);
   assert.equal(leads[1].negative, true);
   assert.equal(JSON.stringify(leads).includes('@'), false);
+});
+
+test('an ask answer keeps only sourced leads and drops unknown emails', () => {
+  const parsed = parseLeadAnswer([
+    'EXPLANATION:',
+    'Northwind is in the attached PDF.',
+    'LEADS:',
+    '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Northwind | northwind.example | Chicago | Ada | Ops | unknown | Manual dispatch | Public case study | High | notes.pdf |',
+    '| Contoso | contoso.example | Austin |  |  |  |  |  | Low | notes.pdf |',
+  ].join('\n'));
+  assert.equal(parsed.explanation, 'Northwind is in the attached PDF.');
+  assert.equal(parsed.leads.length, 2);
+  assert.equal(parsed.leads[0].email, '');
+  assert.equal(parsed.leads[0].priority, 'High');
+  assert.equal(parsed.leads[1].hook, '');
+  assert.match(askPrompt('Find operators', { SELLER_OFFERING: 'Routing software' }), /Routing software/);
+});
+
+test('office text is read out of a docx zip', () => {
+  const xml = '<w:document><w:t>Northwind pump</w:t></w:document>';
+  const name = Buffer.from('word/document.xml');
+  const data = Buffer.from(xml);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt16LE(name.length, 26);
+  const text = officeText(Buffer.concat([local, name, data]));
+  assert.match(text, /Northwind pump/);
 });
 
 test('a business profile is the env for that run', () => {

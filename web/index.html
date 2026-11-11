@@ -519,6 +519,16 @@
   .tool b { display: block; font-size: 13px; }
   .tool small { display: block; color: #5f6368; font-size: 11px; font-weight: 500; }
   .tool svg { width: 22px; height: 22px; flex: none; }
+  .ask-leads { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .ask-leads h2 { margin: 0 0 8px; font-size: 16px; }
+  .ask-leads article { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .ask-leads b { display: block; font-size: 13px; }
+  .ask-leads span { display: block; color: #5f6368; font-size: 12px; line-height: 1.4; }
+  .ws-toggles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 14px; }
+  .ws-toggles label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+  .ws-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e6e8eb; }
+  .ws-row b { display: block; font-size: 14px; }
+  .ws-row small { color: #5f6368; }
 
   .quote-card {
     background: #fff; color: var(--ink); border-radius: 28px; padding: 28px 32px 24px;
@@ -722,9 +732,10 @@
           Add sources
         </button>
         <button type="button" class="saved-src" id="savedSources">Saved sources</button>
+        <button type="button" class="saved-src" id="workspaceSources">Google Workspace</button>
         <label class="src-row"><input type="checkbox" id="selectAll"> Select all</label>
         <div id="sourceList"></div>
-        <input id="pdf" type="file" accept="application/pdf,.pdf" hidden>
+        <input id="sourceFiles" type="file" multiple hidden>
         <details class="batch">
           <summary>Batch profile</summary>
           <label>Business <input id="sellerName" placeholder="The company running this search" autocomplete="organization"></label>
@@ -748,9 +759,9 @@
       <section class="panel doc" aria-label="Lead sheet">
         <div class="doc-main">
           <div class="doc-mark" id="docMark"></div>
-          <h1 id="deskTitle" tabindex="-1">Lead Generation.xlsx</h1>
-          <p class="meta" id="sourceMeta">1 source · Nov 11, 2026</p>
-          <p class="doc-copy">Add a grounding PDF. The desk writes this batch from public sources. Drafts stay in Gmail until you approve them.</p>
+          <h1 id="deskTitle" tabindex="-1">Lead Generation</h1>
+          <p class="meta" id="sourceMeta">0 sources</p>
+          <p class="doc-copy">Add a file or a Google Workspace item. The ask bar reads the checked sources with Gemini. Drafts stay in Gmail until you approve them.</p>
           <div class="doc-text" id="docText">
             <p>High rows can receive a briefing, a calendar link, and a task due on the date 48 hours later. A negative match stays on the sheet only.</p>
             <p>Nothing on this desk sends an email.</p>
@@ -764,12 +775,16 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V6M6.5 11 12 5.5 17.5 11"/></svg>
             </button>
           </form>
-          <p class="studio-note">Public sources only. A draft is not an email.</p>
+          <p class="studio-note">Checked sources only. A draft is not an email.</p>
         </div>
       </section>
       <aside class="panel tools">
         <h2>Studio</h2>
         <div class="tool-grid" id="toolGrid"></div>
+        <section class="ask-leads" id="askLeads" aria-label="Leads from the ask bar">
+          <h2>Leads</h2>
+          <div id="askLeadList"><p class="meta">Ask with sources checked. The list appears here.</p></div>
+        </section>
       </aside>
     </section>
 
@@ -995,7 +1010,7 @@ const tools = [
   { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
   { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
   { sheet: "pipeline", title: "Pipeline", copy: "Stage counts", icon: "bars", color: "#d93025" },
-  { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4", start: true },
+  { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4" },
   { sheet: "workspace", title: "Lead sheet", copy: "Google Sheets", icon: "sheets" },
   { sheet: "tasks", title: "Tasks", copy: "48-hour follow-up", icon: "tasks", color: "#1a73e8" },
   { sheet: "draft", title: "Drafts", copy: "Gmail, not sent", icon: "gmail" }
@@ -1020,8 +1035,8 @@ const dotViews = [
   ["accounts", "Accounts"],
   ["map", "Territory"]
 ];
-let sourceSeq = 2;
-const sources = [{ id: "src-1", name: "Lead Generation.xlsx", kind: "File", saved: false }];
+let sourceSeq = 1;
+const sources = [];
 let savedOnly = false;
 let slide = 0;
 let timer = null;
@@ -1126,7 +1141,8 @@ function openDesk() {
   document.getElementById("deskTitle").focus();
 }
 const sheetMeta = {
-  map: ["Maps", "Territory"],
+  google: ["Google Workspace", "Account files"],
+  map: ["Google Maps", "Territory"],
   report: ["Google Docs", "Briefings"],
   slides: ["Google Slides", "Slide deck"],
   pipeline: ["Pipeline", "Lead pipeline"],
@@ -1142,6 +1158,7 @@ function inSheet() {
   return document.getElementById("studioDrawer").classList.contains("is-open");
 }
 function drawerBody(name) {
+  if (name === "google") return workspaceCard();
   if (name === "run") {
     return researchBody(document.getElementById("runHeading").textContent, document.getElementById("runLede").textContent);
   }
@@ -1253,6 +1270,10 @@ document.body.addEventListener("click", (event) => {
     return;
   }
   const sheetButton = event.target.closest("[data-sheet]");
+  if (sheetButton && sheetButton.closest("#toolGrid")) {
+    openGoogleApp(sheetButton.dataset.sheet);
+    return;
+  }
   if (sheetButton && !sheetButton.closest("#gate")) {
     if (sheetButton.dataset.id) {
       const lead = leads.find((item) => item.id === sheetButton.dataset.id);
@@ -1498,9 +1519,9 @@ document.getElementById("holdDraft").onclick = () => {
 };
 function renderWorkspace() {
   const rows = [
-    { name: "Lead Generation.xlsx", meta: "File · 2026-11-11 09:23", view: "studio", icon: "sheets" },
+    { name: "Lead sheet", meta: "Google Sheets · the connected spreadsheet", view: "studio", icon: "sheets" },
     ...leads.map((lead, index) => ({
-      name: lead.company + ".xlsx",
+      name: lead.company,
       meta: lead.negative ? "Negative match · no draft" : "File · 2026-11-11 09:2" + (4 + index),
       view: "report",
       id: lead.id,
@@ -1533,7 +1554,7 @@ function renderSources() {
   const rows = visibleSources();
   document.getElementById("sourceList").innerHTML = rows.map((item) =>
     `<div class="src-line"><label class="src-row"><input type="checkbox" class="src-check" data-id="${item.id}" ${item.saved ? "checked" : ""}> ${escapeHtml(item.name)}</label><button type="button" class="src-del" data-del="${item.id}">Delete</button><span class="src-kind">${escapeHtml(item.kind)}</span></div>`
-  ).join("") || `<p class="meta">No saved sources yet.</p>`;
+  ).join("") || `<p class="meta">No sources yet.</p>`;
   document.querySelectorAll(".src-check").forEach((box) => {
     box.onchange = () => {
       const item = sources.find((source) => source.id === box.dataset.id);
@@ -1559,7 +1580,7 @@ function safeUrl(value) {
 function paintSourceCount() {
   const saved = sources.filter((item) => item.saved).length;
   const noun = (count) => count + (count === 1 ? " source" : " sources");
-  document.getElementById("sourceMeta").textContent = noun(sources.length) + " · Nov 11, 2026";
+  document.getElementById("sourceMeta").textContent = noun(sources.length);
   document.getElementById("sourceCount").textContent = noun(saved);
   const selectAll = document.getElementById("selectAll");
   selectAll.checked = sources.length > 0 && saved === sources.length;
@@ -1572,12 +1593,51 @@ document.getElementById("sourceList").addEventListener("click", (event) => {
   if (index >= 0) sources.splice(index, 1);
   renderSources();
 });
-document.getElementById("addSources").onclick = () => document.getElementById("pdf").click();
-document.getElementById("pdf").onchange = () => {
-  const files = Array.from(document.getElementById("pdf").files || []);
-  files.forEach((file) => sources.push({ id: "src-" + (sourceSeq++), name: file.name, kind: "File", saved: true }));
-  renderSources();
-  if (files.length) toast(files.length + " file added on this machine. Nothing was uploaded.");
+document.getElementById("addSources").onclick = () => document.getElementById("sourceFiles").click();
+document.getElementById("sourceFiles").onchange = async () => {
+  const input = document.getElementById("sourceFiles");
+  const files = Array.from(input.files || []);
+  input.value = "";
+  if (!files.length) return;
+  const tooBig = files.filter((file) => file.size > 18 * 1024 * 1024);
+  tooBig.forEach((file) => toast(file.name + " is over 18 MB. It was not added."));
+  const accepted = files.filter((file) => file.size <= 18 * 1024 * 1024);
+  if (!accepted.length) return;
+  try {
+    const payload = await Promise.all(accepted.map(fileToPayload));
+    const response = await postDesk("/api/sources", { files: payload });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      toast((body.sources && body.sources.find((item) => item.error) || {}).error || body.error || "The file was not added.");
+      return;
+    }
+    (body.sources || []).forEach((item) => {
+      if (!item.ok) {
+        toast(item.error || "The file was not added.");
+        return;
+      }
+      sources.push({ id: "src-" + (sourceSeq++), name: item.name, kind: item.kind, saved: true, serverId: item.id });
+    });
+    renderSources();
+    toast(accepted.length + (accepted.length === 1 ? " file added." : " files added."));
+  } catch (error) {
+    toast(error.message || "The file was not added.");
+  }
+};
+function fileToPayload(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result || "");
+      resolve({ name: file.name, mime: file.type || "application/octet-stream", data: value.slice(value.indexOf(",") + 1) });
+    };
+    reader.onerror = () => reject(new Error(file.name + " could not be read."));
+    reader.readAsDataURL(file);
+  });
+}
+document.getElementById("workspaceSources").onclick = () => {
+  openSheet("google");
+  loadWorkspaceItems();
 };
 document.getElementById("savedSources").onclick = () => {
   savedOnly = !savedOnly;
@@ -1630,7 +1690,7 @@ document.getElementById("leadMenu").onclick = (event) => {
   setMenu(document.getElementById("appsMenu").hidden);
 };
 renderSources();
-document.getElementById("askForm").onsubmit = (event) => {
+document.getElementById("askForm").onsubmit = async (event) => {
   event.preventDefault();
   const input = document.getElementById("askInput");
   const text = input.value.trim();
@@ -1638,12 +1698,112 @@ document.getElementById("askForm").onsubmit = (event) => {
   const box = document.getElementById("docText");
   const asked = document.createElement("p");
   asked.textContent = text;
-  const reply = document.createElement("p");
-  reply.textContent = "Noted on the desk. Run research when the profile is ready. The pitch is not sent.";
-  box.append(asked, reply);
   input.value = "";
+  box.append(asked);
+  const profile = profileBody();
+  const checked = sources.filter((item) => item.saved);
+  try {
+    const response = await postDesk("/api/ask", {
+      question: text,
+      uploads: checked.filter((item) => item.serverId).map((item) => item.serverId),
+      workspace: checked.filter((item) => item.workspaceId).map((item) => ({ id: item.workspaceId, name: item.name, url: item.url || "" })),
+      sellerName: profile.sellerName,
+      offering: profile.offering,
+      icp: profile.icp,
+      industry: profile.industry,
+      region: profile.region,
+      maxLeads: profile.maxLeads
+    });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      const reply = document.createElement("p");
+      reply.textContent = body.error || "Gemini did not answer. Nothing was written to Sheets.";
+      box.append(reply);
+      toast(reply.textContent);
+      return;
+    }
+    const reply = document.createElement("p");
+    reply.textContent = body.explanation || "Gemini returned no explanation.";
+    box.append(reply);
+    paintAskedLeads(body.leads || []);
+  } catch (error) {
+    const reply = document.createElement("p");
+    reply.textContent = error.message || "The desk could not reach Gemini.";
+    box.append(reply);
+  }
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
+function paintAskedLeads(rows) {
+  const list = document.getElementById("askLeadList");
+  if (!rows.length) {
+    list.innerHTML = "<p class=\"meta\">No company in the checked sources matched this question.</p>";
+    return;
+  }
+  list.innerHTML = rows.map((lead) => `<article><b>${escapeHtml(lead.company)}</b><span>${escapeHtml(lead.priority)} · ${escapeHtml(lead.pain || "No pain point in the sources.")}</span><span>${escapeHtml(lead.hook || "No hook. A draft is not created.")}</span></article>`).join("");
+}
+const googleApps = { map: "maps", report: "briefings", slides: "slides", pipeline: "sheet", run: "sheet", workspace: "sheet", tasks: "tasks", draft: "drafts" };
+async function openGoogleApp(sheet) {
+  const key = googleApps[sheet] || "sheet";
+  try {
+    const response = await postDesk("/api/google", { action: "links" });
+    const body = await response.json();
+    const href = body.links && body.links[key];
+    if (!response.ok || !body.ok || !href) {
+      toast(body.error || "Google did not return a link. Nothing was opened.");
+      return;
+    }
+    window.open(href, "_blank", "noopener");
+  } catch {
+    toast("The desk could not reach Google. Nothing was opened.");
+  }
+}
+function workspaceCard() {
+  const kinds = ["gmail", "docs", "sheets", "drive", "slides"];
+  const labels = { gmail: "Gmail", docs: "Docs", sheets: "Sheets", drive: "Drive", slides: "Slides" };
+  return `<div class="ws-toggles" id="wsToggles">${kinds.map((kind) => `<label><input type="checkbox" data-kind="${kind}" checked> ${labels[kind]}</label>`).join("")}</div><div id="wsItems"><p>Loading the connected Google account.</p></div>`;
+}
+async function loadWorkspaceItems() {
+  const box = document.getElementById("wsItems");
+  const toggles = document.getElementById("wsToggles");
+  if (!box || !toggles) return;
+  const kinds = Array.from(toggles.querySelectorAll("input:checked")).map((input) => input.dataset.kind);
+  toggles.onchange = () => loadWorkspaceItems();
+  if (!kinds.length) {
+    box.innerHTML = "<p>Turn on Gmail, Docs, Sheets, Drive, or Slides.</p>";
+    return;
+  }
+  box.innerHTML = "<p>Loading the connected Google account.</p>";
+  try {
+    const response = await postDesk("/api/google", { action: "list", kinds });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      box.innerHTML = `<p>${escapeHtml(body.error || "Google did not return files.")}</p>`;
+      return;
+    }
+    const items = Array.isArray(body.items) ? body.items : [];
+    box.innerHTML = items.map((item) => `<div class="ws-row"><span><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.kind)}</small></span>${item.id ? `<button type="button" data-add-ws="${escapeHtml(item.id)}" data-ws-name="${escapeHtml(item.name)}" data-ws-kind="${escapeHtml(item.kind)}" data-ws-url="${escapeHtml(item.url || "")}">Add</button>` : ""}</div>`).join("") || "<p>Nothing in the checked Google apps.</p>";
+    box.querySelectorAll("[data-add-ws]").forEach((button) => {
+      button.onclick = () => {
+        if (sources.some((item) => item.workspaceId === button.dataset.addWs)) {
+          toast("Already in sources.");
+          return;
+        }
+        sources.push({
+          id: "src-" + (sourceSeq++),
+          name: button.dataset.wsName,
+          kind: button.dataset.wsKind,
+          saved: true,
+          workspaceId: button.dataset.addWs,
+          url: button.dataset.wsUrl
+        });
+        renderSources();
+        toast(button.dataset.wsName + " added as a source.");
+      };
+    });
+  } catch {
+    box.innerHTML = "<p>The desk could not reach Google.</p>";
+  }
+}
 paintPhases("idle");
 readProfile();
 async function loadDesk() {

@@ -5,7 +5,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { demoLeads } from './lib/leads.js';
-import { businessEnv, deskAuthorized, executeDryRun } from './lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeDryRun, redactSecrets } from './lib/desk-run.js';
+import { askSources } from './lib/ask.js';
+import { loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 
 const root = process.cwd();
 const webRoot = path.resolve(root, 'web');
@@ -81,6 +83,35 @@ function webhookConfig() {
   return { url, secret };
 }
 
+async function callAppsScript(payload) {
+  const { url, secret } = webhookConfig();
+  if (!url || !secret) {
+    return { status: 424, body: { ok: false, error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was read from Google.' } };
+  }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Secret': secret,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(120000),
+    });
+    const raw = await response.text();
+    let body;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return { status: 502, body: { ok: false, error: 'Apps Script returned a non-JSON response.' } };
+    }
+    if (!body.ok) return { status: 409, body };
+    return { status: 200, body };
+  } catch {
+    return { status: 502, body: { ok: false, error: 'The desk could not reach Apps Script.' } };
+  }
+}
+
 async function postApprove(company, interactionId, seller = {}) {
   const { url, secret } = webhookConfig();
   if (!url || !secret) {
@@ -147,8 +178,85 @@ async function handleApi(request, response, url) {
     send(response, 401, { ok: false, error: 'Desk token was rejected.' });
     return;
   }
-  if (limited()) {
+  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || /\/approve$/.test(url.pathname);
+  if (metered && limited()) {
     send(response, 429, { ok: false, error: 'Too many desk writes. Wait a few minutes. Nothing was sent.' });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/sources') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The file body was not JSON. Nothing was added.' });
+      return;
+    }
+    const files = Array.isArray(body.files) ? body.files.slice(0, 12) : [];
+    const sources = saveUploads(root, files);
+    send(response, sources.some((item) => item.ok) ? 200 : 422, { ok: sources.some((item) => item.ok), sources });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/google') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The Google request was not JSON.' });
+      return;
+    }
+    const action = body.action === 'list' ? 'list' : 'links';
+    const payload = action === 'list'
+      ? { action, kinds: Array.isArray(body.kinds) ? body.kinds.slice(0, 5) : [] }
+      : { action: 'links' };
+    const outcome = await callAppsScript(payload);
+    send(response, outcome.status, outcome.body);
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/ask') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The question was not JSON. Nothing was asked.' });
+      return;
+    }
+    const question = String(body.question || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 2000);
+    if (!question) {
+      send(response, 422, { ok: false, error: 'The question was empty. Nothing was asked.' });
+      return;
+    }
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+      send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was asked.' });
+      return;
+    }
+    const uploads = (Array.isArray(body.uploads) ? body.uploads : []).slice(0, 8).map((id) => loadUpload(root, id)).filter(Boolean);
+    const workspace = (Array.isArray(body.workspace) ? body.workspace : []).slice(0, 6);
+    let texts = [];
+    if (workspace.length) {
+      const read = await callAppsScript({ action: 'read', ids: workspace });
+      if (!read.body?.ok) {
+        send(response, read.status, read.body);
+        return;
+      }
+      texts = Array.isArray(read.body.texts) ? read.body.texts : [];
+    }
+    try {
+      const built = partsForAsk(uploads, texts);
+      const answer = await askSources({
+        apiKey,
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        question,
+        profile: businessEnv(body),
+        parts: built.parts,
+        urls: built.urls,
+        tabular: built.tabular,
+      });
+      send(response, 200, { ok: true, explanation: answer.explanation, leads: answer.leads });
+    } catch (error) {
+      const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
+      send(response, 502, { ok: false, error: message || 'Gemini did not answer. Nothing was written to Sheets.' });
+    }
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/runs') {
@@ -216,6 +324,30 @@ async function handleApi(request, response, url) {
     return;
   }
   send(response, 404, { ok: false, error: 'No such desk route.' });
+}
+
+function partsForAsk(uploads, texts) {
+  const parts = [];
+  let tabular = false;
+  let urls = false;
+  let bytes = 0;
+  for (const record of uploads) {
+    const part = uploadPart(record);
+    if (part.tabular) tabular = true;
+    if (part.text) parts.push({ text: part.text });
+    else if (part.inline) {
+      bytes += record.bytes.length;
+      if (bytes > 18 * 1024 * 1024) {
+        throw new Error('The checked files together are over 18 MB. Uncheck one and ask again.');
+      }
+      parts.push({ inlineData: { mimeType: part.mime, data: part.data } });
+    }
+  }
+  for (const item of texts) {
+    if (/^https?:\/\//i.test(item.url || '')) urls = true;
+    parts.push({ text: `Google source ${item.name || item.id}:\n${item.text || ''}` });
+  }
+  return { parts, tabular, urls };
 }
 
 async function handleStatic(response, pathname) {

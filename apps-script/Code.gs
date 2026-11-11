@@ -102,6 +102,9 @@ function handlePost_(e) {
     if (String(body.action || '') === 'approve') {
       return approveLead_(body, config);
     }
+    if (String(body.action || '') === 'links') return workspaceLinks_();
+    if (String(body.action || '') === 'list') return listWorkspace_(body);
+    if (String(body.action || '') === 'read') return readWorkspace_(body);
 
     var markdown = String(body.markdown || '');
   if (!markdown || markdown.length > 500000) {
@@ -824,7 +827,139 @@ function fingerprint_(value) {
   }).join('').slice(0, 32);
 }
 
+function workspaceLinks_() {
+  var props = PropertiesService.getScriptProperties();
+  var sheet = getOrCreateSpreadsheet_(props);
+  var folder = getOrCreateFolder_(props);
+  return json_({
+    ok: true,
+    links: {
+      sheet: sheet.getUrl(),
+      briefings: folder.getUrl(),
+      drive: 'https://drive.google.com/drive/my-drive',
+      docs: 'https://docs.google.com/document/u/0/',
+      slides: 'https://docs.google.com/presentation/u/0/',
+      drafts: 'https://mail.google.com/mail/u/0/#drafts',
+      tasks: 'https://tasks.google.com/',
+      calendar: 'https://calendar.google.com/calendar/u/0/r',
+      maps: 'https://www.google.com/maps'
+    }
+  });
+}
+
+function listWorkspace_(body) {
+  var wanted = body.kinds || ['gmail', 'docs', 'sheets', 'drive', 'slides'];
+  var items = [];
+  if (wanted.indexOf('gmail') !== -1) collect_(items, 'Gmail', function () {
+    var threads = GmailApp.getInboxThreads(0, 12);
+    for (var i = 0; i < threads.length; i += 1) {
+      var thread = threads[i];
+      items.push({
+        id: 'gmail:' + thread.getId(),
+        name: thread.getFirstMessageSubject() || '(no subject)',
+        kind: 'Gmail',
+        url: 'https://mail.google.com/mail/u/0/#all/' + thread.getId()
+      });
+    }
+  });
+  if (wanted.indexOf('docs') !== -1) collectDrive_(items, 'application/vnd.google-apps.document', 'doc:', 'Doc');
+  if (wanted.indexOf('sheets') !== -1) collectDrive_(items, 'application/vnd.google-apps.spreadsheet', 'sheet:', 'Sheet');
+  if (wanted.indexOf('slides') !== -1) collectDrive_(items, 'application/vnd.google-apps.presentation', 'slide:', 'Slides');
+  if (wanted.indexOf('drive') !== -1) collect_(items, 'Drive', function () {
+    var files = DriveApp.getFiles();
+    var count = 0;
+    var scanned = 0;
+    while (files.hasNext() && count < 12 && scanned < 80) {
+      scanned += 1;
+      var file = files.next();
+      var mime = file.getMimeType();
+      if (mime.indexOf('application/vnd.google-apps.') === 0) continue;
+      items.push({ id: 'drive:' + file.getId(), name: file.getName(), kind: 'Drive', url: file.getUrl() });
+      count += 1;
+    }
+  });
+  return json_({ ok: true, items: items });
+}
+
+function readWorkspace_(body) {
+  var ids = body.ids || [];
+  var texts = [];
+  for (var i = 0; i < ids.length && i < 6; i += 1) {
+    var item = ids[i] || {};
+    var id = String(item.id || '');
+    var text = '';
+    try {
+      text = readWorkspaceItem_(id);
+    } catch (err) {
+      text = 'This Google file could not be read.';
+    }
+    texts.push({ id: id, name: String(item.name || ''), url: String(item.url || ''), text: String(text || '').slice(0, 12000) });
+  }
+  return json_({ ok: true, texts: texts });
+}
+
+function readWorkspaceItem_(id) {
+  if (id.indexOf('gmail:') === 0) {
+    var thread = GmailApp.getThreadById(id.slice(6));
+    if (!thread) return '';
+    return thread.getMessages().slice(0, 3).map(function (message) {
+      return message.getFrom() + '\n' + message.getSubject() + '\n' + message.getPlainBody();
+    }).join('\n\n');
+  }
+  if (id.indexOf('doc:') === 0) return DocumentApp.openById(id.slice(4)).getBody().getText();
+  if (id.indexOf('sheet:') === 0) {
+    var sheet = SpreadsheetApp.openById(id.slice(6)).getSheets()[0];
+    return sheet.getDataRange().getValues().slice(0, 40).map(function (row) { return row.join('\t'); }).join('\n');
+  }
+  if (id.indexOf('slide:') === 0) return slideText_(id.slice(6));
+  if (id.indexOf('drive:') === 0) {
+    var file = DriveApp.getFileById(id.slice(6));
+    var mime = file.getMimeType();
+    if (mime === 'application/vnd.google-apps.document') return DocumentApp.openById(file.getId()).getBody().getText();
+    if (mime === 'application/vnd.google-apps.spreadsheet') return readWorkspaceItem_('sheet:' + file.getId());
+    if (mime === 'application/vnd.google-apps.presentation') return slideText_(file.getId());
+    if (file.getSize() > 500000) return file.getName() + ' is on Drive at ' + file.getUrl();
+    return file.getBlob().getDataAsString().slice(0, 12000);
+  }
+  return '';
+}
+
+function slideText_(id) {
+  var presentation = SlidesApp.openById(id);
+  return presentation.getSlides().slice(0, 15).map(function (slide) {
+    return slide.getPageElements().map(function (element) {
+      try {
+        if (element.getPageElementType() === SlidesApp.PageElementType.SHAPE) return element.asShape().getText().asString();
+      } catch (err) {
+        return '';
+      }
+      return '';
+    }).join(' ');
+  }).join('\n');
+}
+
+function collectDrive_(items, mime, prefix, kind) {
+  collect_(items, kind, function () {
+    var files = DriveApp.searchFiles('mimeType = "' + mime + '" and trashed = false');
+    var count = 0;
+    while (files.hasNext() && count < 12) {
+      var file = files.next();
+      items.push({ id: prefix + file.getId(), name: file.getName(), kind: kind, url: file.getUrl() });
+      count += 1;
+    }
+  });
+}
+
+function collect_(items, kind, reader) {
+  try {
+    reader();
+  } catch (err) {
+    items.push({ id: '', name: kind + ' is not available on this script yet', kind: kind, url: '' });
+  }
+}
+
 function safeName_(value) {
   var cleaned = String(value || 'Account').replace(/[\\/:*?"<>|]/g, '').trim();
   return cleaned.slice(0, 80) || 'Account';
 }
+
