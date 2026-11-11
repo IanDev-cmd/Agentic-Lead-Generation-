@@ -768,8 +768,7 @@
           <div class="doc-mark" id="docMark"></div>
           <h1 id="deskTitle" tabindex="-1">Lead Generation</h1>
           <p class="meta" id="sourceMeta">0 sources</p>
-          <p class="doc-copy">Add a file or a Google Workspace item. The ask bar reads the checked sources with Gemini. Drafts stay in Gmail until you approve them.</p>
-          <div class="research-bar">
+          <div class="research-bar" hidden>
             <h2 id="runHeading">Posting the saved table</h2>
             <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
             <div class="phases" id="phases" aria-label="Research phase"></div>
@@ -780,10 +779,7 @@
               <button type="button" id="simResume">Resume batch</button>
             </div>
           </div>
-          <div class="doc-text" id="docText">
-            <p>High rows can receive a briefing, a calendar link, and a task due on the date 48 hours later. A negative match stays on the sheet only.</p>
-            <p>Nothing on this desk sends an email.</p>
-          </div>
+          <div class="doc-text" id="docText"></div>
         </div>
         <div class="studio-dock">
           <form class="studio-ask" id="askForm">
@@ -793,7 +789,6 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V6M6.5 11 12 5.5 17.5 11"/></svg>
             </button>
           </form>
-          <p class="studio-note">Checked sources only. A draft is not an email.</p>
         </div>
       </section>
       <aside class="panel tools">
