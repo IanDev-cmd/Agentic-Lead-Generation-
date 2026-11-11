@@ -227,13 +227,18 @@ test('the desk API returns leads and rejects a missing token', async () => {
   process.env.DESK_TOKEN = '';
 });
 
-test('an Apps Script redirect keeps the secret on the second POST', async () => {
+test('an Apps Script redirect is read with GET before a second POST', async () => {
   const { createServer } = await import('node:http');
   const { postAppsScript } = await import('../lib/webhook.js');
   const server = createServer((request, response) => {
     if (request.url === '/exec') {
-      response.writeHead(302, { Location: '/done' });
+      response.writeHead(302, { Location: '/echo' });
       response.end();
+      return;
+    }
+    if (request.method === 'GET') {
+      response.writeHead(200, { 'Content-Type': 'text/html' });
+      response.end('<!DOCTYPE html><html><body>Moved</body></html>');
       return;
     }
     const ok = request.method === 'POST' && request.headers['x-webhook-secret'] === 'abcdefghijklmnop';
@@ -244,6 +249,32 @@ test('an Apps Script redirect keeps the secret on the second POST', async () => 
   const { port } = server.address();
   const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
   assert.equal(result.body.ok, true);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+});
+
+test('the echo page is used when it already contains the JSON', async () => {
+  const { createServer } = await import('node:http');
+  const { postAppsScript } = await import('../lib/webhook.js');
+  const server = createServer((request, response) => {
+    if (request.url === '/exec') {
+      response.writeHead(302, { Location: '/echo' });
+      response.end();
+      return;
+    }
+    if (request.method === 'POST') {
+      response.writeHead(200, { 'Content-Type': 'text/html' });
+      response.end('<!DOCTYPE html><html><body>echo rejects POST</body></html>');
+      return;
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ ok: true, items: [] }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
+  assert.equal(result.body.ok, true);
+  assert.deepEqual(result.body.items, []);
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
 });

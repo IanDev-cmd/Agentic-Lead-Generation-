@@ -253,27 +253,63 @@ class _ManualRedirect(urllib.request.HTTPRedirectHandler):
     http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
 
 
+def _open_request(opener, request, timeout: int) -> tuple[int, str, str]:
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            status = getattr(response, "status", None) or response.getcode()
+            raw = response.read().decode("utf-8", errors="replace")
+            location = response.headers.get("Location") or ""
+            return status, raw, location
+    except urllib.error.HTTPError as exc:
+        location = exc.headers.get("Location") if exc.headers else ""
+        return exc.code, exc.read().decode("utf-8", errors="replace"), location or ""
+
+
+def _json_ok(raw: str) -> bool:
+    try:
+        return json.loads(raw).get("ok") is True
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return False
+
+
+def _is_json(raw: str) -> bool:
+    try:
+        json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return True
+
+
 def _post_preserving_redirect(url: str, body: bytes, headers: dict, timeout: int, hops: int = 5) -> tuple[int, str]:
+    del hops
     opener = urllib.request.build_opener(_ManualRedirect)
-    current = url
-    for _hop in range(hops):
-        request = urllib.request.Request(current, data=body, headers=headers, method="POST")
-        try:
-            with opener.open(request, timeout=timeout) as response:
-                status = getattr(response, "status", None) or response.getcode()
-                raw = response.read().decode("utf-8", errors="replace")
-                location = response.headers.get("Location")
-        except urllib.error.HTTPError as exc:
-            status = exc.code
-            raw = exc.read().decode("utf-8", errors="replace")
-            location = exc.headers.get("Location") if exc.headers else ""
-        if status in (301, 302, 303, 307, 308):
-            if not location:
-                raise PipelineError("Apps Script redirected without a new address.")
-            current = urllib.parse.urljoin(current, location)
-            continue
+    status, raw, location = _open_request(
+        opener,
+        urllib.request.Request(url, data=body, headers=headers, method="POST"),
+        timeout,
+    )
+    if status not in (301, 302, 303, 307, 308):
         return status, raw
-    raise PipelineError("Apps Script redirected too many times.")
+    if not location:
+        raise PipelineError("Apps Script redirected without a new address.")
+    echo = urllib.parse.urljoin(url, location)
+    get_status, get_raw, _get_location = _open_request(
+        opener,
+        urllib.request.Request(echo, method="GET"),
+        timeout,
+    )
+    if _json_ok(get_raw):
+        return get_status, get_raw
+    post_status, post_raw, _post_location = _open_request(
+        opener,
+        urllib.request.Request(echo, data=body, headers=headers, method="POST"),
+        timeout,
+    )
+    if _json_ok(post_raw) or _is_json(post_raw):
+        return post_status, post_raw
+    if _is_json(get_raw):
+        return get_status, get_raw
+    return post_status, post_raw
 
 
 def post_webhook(settings: Settings, record: dict) -> None:
