@@ -1,8 +1,7 @@
 # Render Blueprint.
-# The web service stays up and serves the desk plus /api.
-# The cron is the one-shot research command. It is not a restarted web process.
-# DRY_RUN stays true until you set a real key and webhook in the dashboard.
-# The desk button posts the saved table and does not call Gemini.
+# Blueprint sync shows an empty box for every sync: false key. Paste those.
+# The valued keys are already filled. Leave PORT unset so Render assigns it.
+# DRY_RUN stays true until you choose a live Gemini run.
 
 services:
   - type: web
@@ -13,21 +12,43 @@ services:
     healthCheckPath: /api/health
     numInstances: 1
     envVars:
-      - key: PORT
-        value: "10000"
       - key: DRY_RUN
         value: "true"
       - key: BILLING_ENABLED
         value: "false"
       - key: DEMO_MODE
         value: "false"
-      - key: DESK_TOKEN
-        sync: false
+      - key: FORCE_FREE_TIER
+        value: "false"
+      - key: VERIFY_BILLING
+        value: "true"
+      - key: DEEP_RESEARCH_AGENT
+        value: deep-research-preview-04-2026
+      - key: MAX_LEADS
+        value: "8"
+      - key: FREE_MODEL
+        value: gemini-2.5-flash
+      - key: FREE_GROUNDING_CALLS_PER_RUN
+        value: "5"
+      - key: POLL_INITIAL_DELAY_MS
+        value: "5000"
+      - key: POLL_MAX_DELAY_MS
+        value: "60000"
+      - key: POLL_BACKOFF_FACTOR
+        value: "1.5"
+      - key: POLL_MAX_WAIT_MS
+        value: "3600000"
+      - key: POLL_MAX_TRANSIENT_ERRORS
+        value: "8"
+      - key: REQUEST_TIMEOUT_MS
+        value: "120000"
       - key: GEMINI_API_KEY
         sync: false
       - key: GOOGLE_WEBHOOK_URL
         sync: false
       - key: WEBHOOK_SECRET
+        sync: false
+      - key: DESK_TOKEN
         sync: false
       - key: SELLER_NAME
         sync: false
@@ -53,6 +74,30 @@ services:
         value: "false"
       - key: DEMO_MODE
         value: "false"
+      - key: FORCE_FREE_TIER
+        value: "false"
+      - key: VERIFY_BILLING
+        value: "true"
+      - key: DEEP_RESEARCH_AGENT
+        value: deep-research-preview-04-2026
+      - key: MAX_LEADS
+        value: "8"
+      - key: FREE_MODEL
+        value: gemini-2.5-flash
+      - key: FREE_GROUNDING_CALLS_PER_RUN
+        value: "5"
+      - key: POLL_INITIAL_DELAY_MS
+        value: "5000"
+      - key: POLL_MAX_DELAY_MS
+        value: "60000"
+      - key: POLL_BACKOFF_FACTOR
+        value: "1.5"
+      - key: POLL_MAX_WAIT_MS
+        value: "3600000"
+      - key: POLL_MAX_TRANSIENT_ERRORS
+        value: "8"
+      - key: REQUEST_TIMEOUT_MS
+        value: "120000"
       - key: GEMINI_API_KEY
         sync: false
       - key: GOOGLE_WEBHOOK_URL
