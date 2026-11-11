@@ -239,6 +239,13 @@
   }
   .file-ico { width: 36px; height: 36px; flex: none; display: grid; place-items: center; }
   .file-ico svg { width: 32px; height: 32px; }
+  .file-ico img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: #fff; }
+  .logo-letter {
+    width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
+    background: #e8f0fe; color: #1a73e8; font-weight: 700; font-size: 16px;
+  }
+  .research-bar { margin: 8px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .research-bar h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.02em; }
   .file-card b { display: block; font-size: 15px; }
   .file-card small { display: block; margin-top: 2px; color: #5f6368; font-size: 13px; font-weight: 500; }
 
@@ -709,7 +716,7 @@
   <nav class="side-dots" id="sideDots" aria-label="Desk pages"></nav>
   <nav class="dock" aria-label="Shortcuts">
     <button type="button" data-view="map"><i style="background:#12b5a6;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></i>Territory</button>
-    <button type="button" data-view="run" data-start="1"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg></i>Research</button>
+    <button type="button" data-view="studio" data-start="1"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg></i>Research</button>
     <button type="button" id="dockMenu"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="1.4" fill="currentColor"/><circle cx="12" cy="6" r="1.4" fill="currentColor"/><circle cx="18" cy="6" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="18" r="1.4" fill="currentColor"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/><circle cx="18" cy="18" r="1.4" fill="currentColor"/></svg></i>Menu</button>
     <button type="button" data-view="studio"><i style="background:#f4ead7;color:#202124"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></i>Add shortcut</button>
   </nav>
@@ -762,6 +769,17 @@
           <h1 id="deskTitle" tabindex="-1">Lead Generation</h1>
           <p class="meta" id="sourceMeta">0 sources</p>
           <p class="doc-copy">Add a file or a Google Workspace item. The ask bar reads the checked sources with Gemini. Drafts stay in Gmail until you approve them.</p>
+          <div class="research-bar">
+            <h2 id="runHeading">Posting the saved table</h2>
+            <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
+            <div class="phases" id="phases" aria-label="Research phase"></div>
+            <div class="actions">
+              <button type="button" class="primary" id="runResearch">Run research</button>
+              <button type="button" id="simLimit">Show rate limit</button>
+              <button type="button" id="simTimeout">Show timeout</button>
+              <button type="button" id="simResume">Resume batch</button>
+            </div>
+          </div>
           <div class="doc-text" id="docText">
             <p>High rows can receive a briefing, a calendar link, and a task due on the date 48 hours later. A negative match stays on the sheet only.</p>
             <p>Nothing on this desk sends an email.</p>
@@ -792,21 +810,6 @@
       <h1>Google Workspace</h1>
       <p class="file-sub">Recent Sheets, Docs, Drive, and Gmail arrivals.</p>
       <div id="fileCards"></div>
-    </section>
-
-    <section class="view page" id="view-run" hidden>
-      <p class="wordmark" id="runTitle">Research</p>
-      <div class="quote-card" role="status">
-        <h2 id="runHeading">Posting the saved table</h2>
-        <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
-        <div class="phases" id="phases" aria-label="Research phase"></div>
-        <div class="actions">
-          <button type="button" class="primary" id="runResearch">Run research</button>
-          <button type="button" id="simLimit">Show rate limit</button>
-          <button type="button" id="simTimeout">Show timeout</button>
-          <button type="button" id="simResume">Resume batch</button>
-        </div>
-      </div>
     </section>
 
     <section class="view page" id="view-pipeline" hidden>
@@ -853,15 +856,10 @@
       </div>
     </section>
 
-    <section class="view page" id="view-accounts" hidden>
-      <div class="quote-card">
-        <h2>Accounts</h2>
-        <p class="lede">Public company rows from the batch. This is the account list, without a hazard globe.</p>
-        <table>
-          <thead><tr><th>Company</th><th>Domain</th><th>Headquarters</th><th>Distance</th></tr></thead>
-          <tbody id="accountRows"></tbody>
-        </table>
-      </div>
+    <section class="view file-stage" id="view-accounts" hidden>
+      <h1>Leads</h1>
+      <p class="file-sub">Companies in this batch.</p>
+      <div id="leadCards"></div>
     </section>
 
     <section class="view page" id="view-pains" hidden>
@@ -996,11 +994,10 @@ const thumbs = [
 let leads = [];
 let batchInteractionId = '';
 const tiles = [
-  { view: "studio", title: "Upload", copy: "Pick files from the desktop", icon: "upload", color: "#1a73e8" },
-  { view: "run", title: "Research", copy: "Planning, search, and drafts", icon: "calendar", color: "#188038", start: true },
+  { view: "studio", title: "Research", copy: "Sources, ask, and the batch", icon: "calendar", color: "#188038" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
   { view: "pipeline", title: "Pipeline", copy: "Discovered through the task", icon: "sparkles", color: "#1a73e8" },
-  { view: "accounts", title: "Accounts", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
+  { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
   { view: "pains", title: "Pain points", copy: "Sourced problems and misses", icon: "activity", color: "#e37400" },
   { view: "priority", title: "Priority", copy: "High rows and the 48-hour task", icon: "bars", color: "#188038" },
   { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" }
@@ -1016,11 +1013,10 @@ const tools = [
   { sheet: "draft", title: "Drafts", copy: "Gmail, not sent", icon: "gmail" }
 ];
 const menuItems = [
-  ["studio", "Upload"],
-  ["run", "Research"],
+  ["studio", "Research"],
   ["workspace", "Google Workspace"],
   ["pipeline", "Pipeline"],
-  ["accounts", "Accounts"],
+  ["accounts", "Leads"],
   ["pains", "Pain points"],
   ["priority", "Priority"],
   ["map", "Territory"],
@@ -1028,11 +1024,10 @@ const menuItems = [
 ];
 const dotViews = [
   ["home", "Home"],
-  ["studio", "Lead desk"],
-  ["run", "Research"],
+  ["studio", "Research"],
   ["workspace", "Google Workspace"],
   ["pipeline", "Pipeline"],
-  ["accounts", "Accounts"],
+  ["accounts", "Leads"],
   ["map", "Territory"]
 ];
 let sourceSeq = 1;
@@ -1150,7 +1145,7 @@ const sheetMeta = {
   workspace: ["Google Sheets", "Data table"],
   tasks: ["Google Tasks", "Tasks"],
   draft: ["Google Gmail", "Email"],
-  accounts: ["Accounts", "Accounts"],
+  accounts: ["Leads", "Companies"],
   pains: ["Pain points", "Pain points"],
   priority: ["Priority", "Priority"]
 };
@@ -1234,6 +1229,7 @@ function paintView(name) {
   if (name === "lead") renderLead();
 }
 function show(name) {
+  if (name === "run") name = "studio";
   closeSheet(true);
   setMenu(false);
   document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== "view-" + name; });
@@ -1321,7 +1317,7 @@ function startRun() {
   clearTimeout(timer);
   phase = "plan";
   if (inSheet()) openSheet("run");
-  else show("run");
+  else show("studio");
   step("plan", "Posting the saved table", "Gemini is not called from this button. Apps Script is the only writer.");
   postDesk("/api/runs", profileBody())
     .then(async (response) => ({ response, body: await response.json() }))
@@ -1534,8 +1530,30 @@ function renderWorkspace() {
     `<button class="file-card" type="button" data-view="${escapeHtml(row.view)}"${row.id ? ` data-id="${escapeHtml(row.id)}"` : ""}><span class="file-ico">${icon(row.icon)}</span><span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(row.meta)}</small></span></button>`
   ).join("");
 }
+function leadLogo(lead) {
+  if (lead.photo) return lead.photo;
+  const domain = String(lead.domain || "").replace(/^https?:\/\//, "").split("/")[0];
+  if (domain && !/\s/.test(domain)) return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
+  return "";
+}
 function renderAccounts() {
-  document.getElementById("accountRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.distance)}</td></tr>`).join("");
+  const box = document.getElementById("leadCards");
+  box.innerHTML = leads.map((lead) => {
+    const logo = leadLogo(lead);
+    const letter = escapeHtml((lead.company || "?").slice(0, 1));
+    const mark = logo ? `<img src="${escapeHtml(logo)}" alt="">` : `<b class="logo-letter">${letter}</b>`;
+    const meta = [lead.domain, lead.hq, lead.priority].filter(Boolean).join(" · ");
+    return `<button class="file-card" type="button" data-view="lead" data-id="${escapeHtml(lead.id)}"><span class="file-ico">${mark}</span><span><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(meta || "Company")}</small></span></button>`;
+  }).join("") || `<p class="file-sub">No companies yet.</p>`;
+  box.querySelectorAll("img").forEach((img) => {
+    img.onerror = () => {
+      const name = img.closest(".file-card").querySelector("span b");
+      const fallback = document.createElement("b");
+      fallback.className = "logo-letter";
+      fallback.textContent = (name ? name.textContent : "?").slice(0, 1);
+      img.replaceWith(fallback);
+    };
+  });
 }
 function renderPains() {
   document.getElementById("painList").innerHTML = leads.map((lead) => `<article class="lead"><strong>${escapeHtml(lead.company)}</strong><p>${escapeHtml(lead.pain)}</p><span class="tag ${lead.negative ? "neg" : "high"}">${lead.negative ? "Negative match" : "Sourced"}</span></article>`).join("");
