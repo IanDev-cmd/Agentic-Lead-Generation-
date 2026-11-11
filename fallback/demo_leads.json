@@ -1,0 +1,30 @@
+{
+  "leads": [
+    {
+      "company": "Northwind Analytics",
+      "domain": "northwind.example",
+      "hqAddress": "1 Market Street, San Francisco, CA",
+      "contactName": "unknown",
+      "contactTitle": "VP Operations",
+      "contactEmail": "unknown",
+      "painPoint": "Public job posts describe account research as a full-day manual task",
+      "hook": "Careers page lists a new RevOps role opened this month",
+      "priority": "High",
+      "source": "https://example.com/northwind",
+      "briefing": "Northwind Analytics publishes operations and revenue-operations roles and describes its account workflow in public job posts.\n\nThe sourced pain point is manual account research that their own posting says takes a full day.\n\nThe hook a salesperson can mention is the RevOps role opened this month. No contact email is public, so the draft stays in the owner's mailbox until a real recipient is known."
+    },
+    {
+      "company": "Contoso Fabrication",
+      "domain": "contoso.example",
+      "hqAddress": "500 West Madison Street, Chicago, IL",
+      "contactName": "unknown",
+      "contactTitle": "unknown",
+      "contactEmail": "unknown",
+      "painPoint": "unknown",
+      "hook": "unknown",
+      "priority": "Low",
+      "source": "https://example.com/contoso",
+      "briefing": ""
+    }
+  ]
+}

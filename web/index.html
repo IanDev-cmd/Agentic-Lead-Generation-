@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600;700&family=Montserrat:wght@500;600;700&family=Outfit:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #202124;
+    --muted: #3c4043;
+    --line: #dadce0;
+    --paper: #ffffff;
+    --wash: #f6f8fa;
+    --stage: #04141c;
+    --link: #174ea6;
+    --ok: #0d6b32;
+    --ok-bg: #e6f4ea;
+    --warn: #7a4e00;
+    --warn-bg: #fff8e1;
+    --bad: #8a1c1c;
+    --bad-bg: #fdecea;
+    --focus: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    color: var(--ink);
+    background: var(--stage) url("bg.jpg") center / cover no-repeat fixed;
+  }
+  button, input, textarea, select { font: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+  .skip {
+    position: absolute; left: 12px; top: -40px; z-index: 80;
+    background: #fff; color: var(--ink); padding: 8px 12px;
+  }
+  .skip:focus { top: 12px; }
+
+  #gate.scene {
+    position: fixed; inset: 0; z-index: 40;
+    display: grid; place-items: center; padding: 28px 18px;
+    color: #fff; font-family: Montserrat, "Segoe UI", sans-serif;
+    background: #07161e url("bg.jpg") center / cover no-repeat fixed;
+  }
+  #gate[hidden] { display: none !important; }
+  #gate button { font-family: inherit; cursor: pointer; }
+  #gate .card {
+    position: relative; width: min(1120px, 100%);
+    height: min(640px, calc(100vh - 48px)); min-height: 520px;
+    border-radius: 28px; overflow: hidden;
+    background: #07161e url("bg.jpg") center / cover no-repeat;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.38);
+  }
+  #gate .shade {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(5, 16, 24, 0.45) 0%, rgba(5, 16, 24, 0.18) 48%, rgba(5, 16, 24, 0.12) 100%);
+  }
+  #gate .nav, #gate .rail, #gate .copy, #gate .popular, #gate .search-pop { position: absolute; z-index: 2; }
+  #gate .nav {
+    top: 22px; left: 28px; right: 28px;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  }
+  #gate .brand { font-weight: 700; font-size: 22px; letter-spacing: -0.03em; }
+  #gate .links { display: flex; gap: 28px; }
+  #gate .links button {
+    border: 0; background: transparent; color: rgba(255,255,255,0.92);
+    font-size: 13px; font-weight: 500; padding: 0;
+  }
+  #gate .links button.on { color: #fff; text-decoration: underline; text-underline-offset: 6px; }
+  #gate .tools { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+  #gate .icon-btn {
+    width: 34px; height: 34px; border: 0; border-radius: 50%;
+    background: transparent; color: #fff; display: grid; place-items: center;
+  }
+  #gate .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  #gate .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.85);
+    display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    background: rgba(255,255,255,0.16);
+  }
+  #gate .search-pop {
+    top: 64px; right: 78px; background: rgba(8, 20, 28, 0.72);
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; padding: 8px 14px;
+  }
+  #gate .search-pop[hidden] { display: none !important; }
+  #gate .search-pop input { border: 0; background: transparent; color: #fff; outline: none; width: 180px; }
+  #gate .rail {
+    left: 34px; top: 50%; transform: translateY(-42%); height: 150px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  }
+  #gate .rail::before {
+    content: ""; position: absolute; top: 6px; bottom: 6px; width: 1px; background: rgba(255,255,255,0.85);
+  }
+  #gate .rail button {
+    position: relative; width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0;
+    background: rgba(255,255,255,0.55);
+  }
+  #gate .rail button.on { width: 12px; height: 12px; background: #fff; }
+  #gate .copy { left: 108px; top: 42%; transform: translateY(-50%); width: min(360px, 38%); }
+  #gate .copy h1 { margin: 0 0 12px; font-size: clamp(32px, 4vw, 44px); font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
+  #gate .copy p { margin: 0 0 26px; max-width: 320px; font-size: 13px; line-height: 1.55; font-weight: 500; color: rgba(255,255,255,0.92); }
+  #gate .enter {
+    display: inline-grid; place-items: center; min-width: 118px; height: 36px; padding: 0 22px;
+    border-radius: 999px; border: 1.5px solid #fff; background: transparent; color: #fff; font-size: 13px; font-weight: 600;
+  }
+  #gate .enter:hover { background: rgba(255,255,255,0.12); }
+  #gate .popular { right: 36px; bottom: 36px; width: min(430px, 46%); }
+  #gate .integrations p { margin: 0 0 12px; font-size: 13px; font-weight: 600; }
+  #gate .int-row { display: flex; gap: 12px; }
+  #gate .int-ico {
+    width: 46px; height: 46px; border-radius: 14px; background: #fff; color: var(--ink);
+    display: grid; place-items: center;
+  }
+  #gate .int-ico svg { width: 26px; height: 26px; }
+  #gate .pop-label { display: flex; align-items: center; gap: 14px; margin: 22px 0 12px; font-size: 13px; font-weight: 600; }
+  #gate .pop-label i { flex: 1; height: 1px; background: rgba(255,255,255,0.9); }
+  #gate .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  #gate .thumbs button {
+    border: 0; border-radius: 12px; height: 108px; color: #fff; font-weight: 700; letter-spacing: 0.04em;
+  }
+  #gate .thumbs button.on { outline: 2px solid #fff; outline-offset: 2px; }
+  #gate .pager { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  #gate .pager button { width: 7px; height: 7px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,0.45); }
+  #gate .pager button.on { background: #fff; }
+
+  .desk {
+    min-height: 100vh; font-family: Inter, Arial, sans-serif; color: #fff;
+    background: transparent;
+  }
+  .desk[hidden] { display: none !important; }
+  .top {
+    position: fixed; top: 0; right: 0; z-index: 26; display: flex; align-items: center; gap: 16px;
+    padding: 16px 22px; font-size: 15px; font-weight: 600;
+  }
+  .home-link {
+    border: 0; background: transparent; color: #fff; font-weight: 600; padding: 6px 2px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  }
+  .top .icon-btn {
+    width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: #fff;
+    display: grid; place-items: center;
+  }
+  .top .icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+  .top .avatar {
+    width: 34px; height: 34px; border-radius: 50%; background: #1a73e8; color: #fff;
+    border: 2px solid #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px;
+  }
+  .apps-menu {
+    position: fixed; top: 58px; right: 68px; z-index: 30; min-width: 220px;
+    background: #fff; color: var(--ink); border-radius: 16px; padding: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  }
+  .apps-menu[hidden] { display: none !important; }
+  .apps-menu button {
+    display: flex; width: 100%; align-items: center; gap: 8px; text-align: left;
+    border: 0; background: transparent; border-radius: 10px; padding: 8px 10px; font-weight: 650; color: var(--ink);
+  }
+  .apps-menu button svg { width: 16px; height: 16px; }
+  .apps-menu button:hover { background: var(--wash); }
+  .side-dots {
+    position: fixed; left: 18px; top: 50%; transform: translateY(-50%); z-index: 20;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .side-dots button {
+    width: 8px; height: 8px; border: 0; border-radius: 50%; padding: 0;
+    background: rgba(255,255,255,0.72); box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .side-dots button[aria-current="true"] { width: 10px; height: 10px; background: #fff; }
+  .dock {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20;
+    display: flex; gap: 28px;
+  }
+  .dock button {
+    border: 0; background: transparent; color: #fff; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.55);
+  }
+  .dock i {
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.22);
+  }
+  .dock svg { width: 22px; height: 22px; }
+  .desk:not(.is-home) .dock,
+  .desk:not(.is-home) .side-dots { display: none; }
+
+  #view-home {
+    min-height: 100vh; width: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 72px 72px 120px;
+  }
+  .wordmark {
+    margin: 0 0 28px; font-family: Outfit, Arial, sans-serif; font-weight: 500;
+    font-size: clamp(40px, 5vw, 64px); letter-spacing: -0.03em; line-height: 1; text-align: center;
+    color: #fff; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+  }
+  .grid {
+    width: min(1040px, 100%);
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
+  }
+  .tile {
+    display: flex; align-items: center; gap: 12px; text-align: left;
+    border: 0; border-radius: 18px; background: #fff; color: var(--ink);
+    padding: 14px 16px; min-height: 78px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  }
+  .tile-ico { width: 28px; height: 28px; flex: none; display: grid; place-items: center; }
+  .tile-ico svg, .tool svg, .file-ico svg, .doc-mark svg { width: 26px; height: 26px; }
+  .tile b { display: block; font-size: 15px; letter-spacing: -0.02em; }
+  .tile small { display: block; margin-top: 2px; color: #5f6368; font-size: 13px; font-weight: 500; }
+
+  .view { width: min(1100px, 100%); margin: 0 auto; }
+  .view[hidden] { display: none !important; }
+  .page {
+    padding: 88px 24px 40px;
+  }
+  .file-stage {
+    width: min(680px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 16vh 0 48px;
+  }
+  .file-stage h1 {
+    margin: 0; color: #fff; font-family: Outfit, Arial, sans-serif; font-weight: 500;
+    font-size: clamp(40px, 5vw, 60px); letter-spacing: -0.03em; line-height: 1;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.45);
+  }
+  .file-sub {
+    margin: 10px 0 22px; color: rgba(255,255,255,0.92); font-size: 16px; font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  }
+  .file-card {
+    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left;
+    background: #fff; color: var(--ink); border: 0; border-radius: 18px;
+    padding: 14px 18px; margin: 0 0 12px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  }
+  .file-ico { width: 36px; height: 36px; flex: none; display: grid; place-items: center; }
+  .file-ico svg { width: 32px; height: 32px; }
+  .file-card b { display: block; font-size: 15px; }
+  .file-card small { display: block; margin-top: 2px; color: #5f6368; font-size: 13px; font-weight: 500; }
+
+  .studio {
+    width: min(1240px, calc(100% - 28px));
+    margin: 0 auto;
+    padding: 68px 0 16px;
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) 280px;
+    gap: 14px;
+    height: 100vh;
+    align-items: stretch;
+  }
+  .panel {
+    background: #fff; color: var(--ink); border-radius: 22px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+    padding: 16px;
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+  }
+  .sources, .tools { display: flex; flex-direction: column; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; }
+  .panel-head h2, .tools h2 { margin: 0 0 12px; font-size: 14px; }
+  .ghost-icon {
+    width: 28px; height: 28px; border: 0; background: transparent; color: #5f6368;
+    display: grid; place-items: center; border-radius: 8px;
+  }
+  .ghost-icon svg { width: 16px; height: 16px; }
+  .add-src, .saved-src {
+    width: 100%; height: 44px; border-radius: 999px; font-weight: 700; font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .add-src { border: 0; background: #e5f8ee; color: var(--ok); }
+  .add-src svg { width: 16px; height: 16px; }
+  .saved-src { margin-top: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  .src-row {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
+    padding: 8px 2px;
+  }
+  .src-row span { margin-left: auto; color: #5f6368; }
+  .batch { margin-top: auto; padding-top: 16px; }
+  .batch summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+  .batch label { margin-top: 8px; }
+  .batch label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .batch input, .batch select {
+    width: 100%; border: 0; background: var(--wash); border-radius: 8px; padding: 6px 8px;
+    color: var(--ink); font-weight: 600;
+  }
+  .panel.doc { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+  .doc-main { flex: 1; min-height: 0; overflow: auto; padding: 28px 28px 8px; }
+  .doc-text p { margin: 16px 0 0; color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 62ch; }
+  .src-line { display: flex; align-items: center; gap: 8px; }
+  .src-line .src-row { flex: 1; min-width: 0; }
+  .src-del {
+    border: 0; background: transparent; color: var(--bad); font-size: 12px; font-weight: 700;
+    padding: 4px 2px;
+  }
+  .src-kind { color: #5f6368; font-size: 13px; }
+  .doc-mark { width: 28px; height: 28px; }
+  .doc h1 { margin: 10px 0 0; font-size: clamp(28px, 3vw, 36px); letter-spacing: -0.03em; line-height: 1.15; }
+  .meta { margin: 6px 0 0; color: #5f6368; font-size: 13px; font-weight: 500; }
+  .doc-copy { margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .thread { margin-top: 16px; }
+  .bubble { border-radius: 14px; padding: 12px 14px; margin-top: 10px; }
+  .bubble.you { background: #e8f0fe; }
+  .bubble.desk { background: #f1f3f4; }
+  .bubble b { display: block; font-size: 13px; margin-bottom: 4px; }
+  .bubble p { margin: 0; font-size: 14px; line-height: 1.45; }
+  .ask {
+    flex: none; margin-top: 12px; display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 6px 6px 16px;
+  }
+  .ask input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 14px; color: var(--ink); }
+  .source-count { color: #5f6368; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .send {
+    width: 36px; height: 36px; border: 0; border-radius: 50%; background: #202124; color: #fff;
+    display: grid; place-items: center; flex: none;
+  }
+  .send svg { width: 18px; height: 18px; }
+  .fine { margin: 8px 0 0; text-align: center; color: #80868b; font-size: 11px; }
+
+  .studio-dock {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 8px 32px 0;
+    background: #fff;
+  }
+  .studio-ask {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #e6e8ee;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    padding: 8px 8px 8px 18px;
+  }
+  .studio-ask input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: 400 15px Inter, sans-serif;
+    color: #202124;
+  }
+  .studio-ask em { font-style: normal; color: #80868b; font-size: 12px; white-space: nowrap; }
+  .studio-go svg { width: 16px; height: 16px; display: block; }
+  .studio-go {
+    all: unset;
+    cursor: pointer;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: #202124;
+    color: #fff;
+  }
+  .studio-note { margin: 6px 0 8px; text-align: center; color: #80868b; font: 400 12px Inter, sans-serif; }
+  body:has(.studio-drawer.is-open) .top { visibility: hidden; pointer-events: none; }
+  .studio-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 40;
+    width: min(560px, 100%);
+    height: 100%;
+    background: #fff;
+    color: #202124;
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
+    transform: translateX(104%);
+    transition: transform .48s cubic-bezier(.22, .8, .24, 1);
+    overflow: auto;
+    padding: 28px 22px 32px;
+    box-sizing: border-box;
+  }
+  .studio-drawer.is-open { transform: translateX(0); }
+  .studio-drawer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .studio-drawer-bar button {
+    border: 0;
+    background: #f1f3f4;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: 600 13px Inter, sans-serif;
+    cursor: pointer;
+    color: #202124;
+  }
+  .studio-kicker { margin: 0; color: #1a73e8; font: 600 12px Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+  .studio-drawer h2 { margin: 6px 0 16px; font: 600 28px/1.15 Outfit, sans-serif; }
+  .doc-sheet, .mail-sheet, .slide-card, .task-card {
+    background: #f7f8fa;
+    border-radius: 16px;
+    padding: 16px 18px;
+    margin: 0 0 12px;
+  }
+  .doc-sheet p, .mail-sheet p { margin: 0 0 8px; font: 400 14px/1.45 Inter, sans-serif; }
+  .doc-sheet b { font-weight: 600; }
+  .mail-sheet pre { margin: 0; white-space: pre-wrap; font: 400 13px/1.5 Inter, sans-serif; color: #202124; }
+  .slide-card b, .task-card b { display: block; margin-bottom: 6px; font: 600 15px Inter, sans-serif; }
+  .slide-card span, .task-card span { display: block; color: #5f6368; font: 400 13px/1.4 Inter, sans-serif; }
+  .sheet-wrap { overflow: auto; border-radius: 12px; border: 1px solid #e6e8eb; }
+  .sheet-wrap table { border-collapse: collapse; min-width: 720px; width: 100%; font: 400 12px Inter, sans-serif; }
+  .sheet-wrap th, .sheet-wrap td { border-bottom: 1px solid #e6e8eb; padding: 8px 10px; text-align: left; white-space: nowrap; }
+  .sheet-wrap th { background: #e6f4ea; color: #137333; font-weight: 600; }
+  .map-list { display: flex; flex-direction: column; gap: 8px; }
+  .map-list button {
+    all: unset;
+    cursor: pointer;
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: #f7f8fa;
+    border-radius: 14px;
+    padding: 14px 16px;
+    font: 500 15px Inter, sans-serif;
+    color: #202124;
+  }
+  .map-list button:hover { background: #eef1f6; }
+  .map-list small { display: block; color: #80868b; font: 400 12px Inter, sans-serif; }
+  #studioDrawerBody > p { margin: 0 0 12px; font: 400 15px/1.55 Inter, sans-serif; color: #202124; }
+
+  #view-lead { width: 100%; margin: 0; height: 100vh; overflow: auto; padding: 64px 0 0; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
+  .trend-wrap { position: relative; min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 28px 24px 48px; }
+  .trend-wrap::before {
+    content: ""; position: absolute; left: 4%; top: 6%; width: 220px; height: 280px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+    pointer-events: none;
+  }
+  .trend {
+    position: relative; z-index: 1; width: min(1080px, 100%); height: min(640px, calc(100vh - 120px)); min-height: 520px;
+    display: grid; grid-template-columns: 1fr 1fr; background: #fff;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28); overflow: hidden;
+  }
+  .trend-left { position: relative; background: #fff; color: #111; display: flex; flex-direction: column; justify-content: center; padding: 36px 7% 72px 78px; }
+  .trend-scroll {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%) rotate(-90deg);
+    transform-origin: center; border: 0; background: transparent; color: #161616;
+    letter-spacing: .28em; font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .trend-copy h1 {
+    margin: 0 0 18px; max-width: 250px; font-family: Fraunces, Georgia, serif; font-weight: 560;
+    font-size: clamp(30px, 3vw, 40px); line-height: 1.12; letter-spacing: -0.03em; color: #141414;
+  }
+  .trend-copy p { margin: 0 0 26px; max-width: 236px; color: #5e5e5e; font-size: 14px; line-height: 1.55; }
+  .trend-more {
+    border: 0; background: #141414; color: #fff; min-width: 132px; height: 44px; padding: 0 18px;
+    border-radius: 3px; font-size: 14px; font-weight: 650;
+  }
+  .trend-share {
+    position: absolute; left: 78px; bottom: 26px; display: flex; align-items: center; gap: 10px;
+    color: #222; font-size: 13px; font-weight: 600;
+  }
+  .trend-share button {
+    width: 28px; height: 28px; border: 1px solid #d5d5d5; background: #fff; border-radius: 2px;
+    display: grid; place-items: center; padding: 0;
+  }
+  .trend-share svg { width: 16px; height: 16px; }
+  .trend-right { position: relative; background: #0d0d0d; }
+  .trend-menu {
+    position: absolute; top: 28px; right: 112px; z-index: 5; width: 36px; height: 28px;
+    border: 0; background: transparent; display: grid; gap: 5px; align-content: center; justify-items: center;
+  }
+  .trend-menu span { display: block; width: 18px; height: 2px; background: #fff; }
+  .trend-rail {
+    position: absolute; right: 26px; top: 28px; bottom: 26px; z-index: 5;
+    display: flex; flex-direction: column; align-items: center; color: #fff;
+  }
+  .trend-meter { margin-top: 86px; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; }
+  .trend-meter i { width: 1px; height: 92px; background: rgba(255,255,255,.75); }
+  .trend-meter button { border: 0; background: transparent; color: #fff; font: inherit; font-weight: 600; padding: 0; }
+  .trend-pads { margin-top: auto; display: flex; gap: 8px; }
+  .trend-pads span { width: 16px; height: 16px; border: 1px solid rgba(255,255,255,.85); }
+  .trend-pads span.on { background: #fff; }
+  .trend-orbit {
+    position: absolute; z-index: 4; left: 56%; top: 47%; width: min(400px, 42vw); aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+  }
+  .trend-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 206deg, transparent 0 18deg, #1c1c1c 18deg 188deg, #f4f4f4 188deg 348deg, transparent 348deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  }
+  .trend-photo {
+    position: absolute; inset: 11%; border-radius: 50%; overflow: hidden; background: #111;
+  }
+  .trend-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.05); }
+  .trend-play {
+    position: absolute; left: 8%; bottom: 4%; width: 54px; height: 54px; border: 0; border-radius: 50%;
+    background: #fff; box-shadow: 0 10px 24px rgba(0,0,0,.2); display: grid; place-items: center;
+  }
+  .trend-play::before {
+    content: ""; border-style: solid; border-width: 8px 0 8px 13px;
+    border-color: transparent transparent transparent #141414; margin-left: 3px;
+  }
+  .trend-scribble { position: absolute; left: 18%; bottom: -8%; width: 54px; height: 78px; }
+  .lead-contact {
+    min-height: 78vh; background: #fff; color: #141414; padding: 72px 12vw 80px;
+  }
+  .lead-contact .kicker { margin: 0 0 8px; letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; color: #666; }
+  .lead-contact h2 { margin: 0 0 28px; font-family: Fraunces, Georgia, serif; font-weight: 560; font-size: clamp(36px, 5vw, 56px); letter-spacing: -0.03em; }
+  .lead-contact dl { display: grid; gap: 18px; max-width: 640px; margin: 0; }
+  .lead-contact dt { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #666; font-weight: 700; }
+  .lead-contact dd { margin: 4px 0 0; font-size: 18px; }
+  .lead-contact a { color: var(--link); }
+  .lead-name { display: block; border: 0; background: transparent; padding: 0; font-weight: 700; font-size: 14px; color: var(--ink); text-align: left; }
+  .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .tool {
+    display: flex; gap: 8px; align-items: flex-start; text-align: left;
+    border: 0; background: transparent; border-radius: 12px; padding: 8px; color: var(--ink);
+  }
+  .tool:hover { background: var(--wash); }
+  .tool b { display: block; font-size: 13px; }
+  .tool small { display: block; color: #5f6368; font-size: 11px; font-weight: 500; }
+  .tool svg { width: 22px; height: 22px; flex: none; }
+
+  .quote-card {
+    background: #fff; color: var(--ink); border-radius: 28px; padding: 28px 32px 24px;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22); margin-top: 8px;
+  }
+  .quote-card h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .quote-card h2 svg { width: 18px; height: 18px; }
+  .lede { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .phases { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+  .phase {
+    border-radius: 999px; padding: 6px 10px; font-size: 13px; font-weight: 700;
+    background: var(--wash); color: var(--muted); display: inline-flex; align-items: center; gap: 6px;
+  }
+  .phase.on { background: #e8f0fe; color: var(--link); }
+  .phase.done { background: var(--ok-bg); color: var(--ok); }
+  .phase.bad { background: var(--bad-bg); color: var(--bad); }
+  .phase.warn { background: var(--warn-bg); color: var(--warn); }
+  .spin { width: 14px; height: 14px; }
+  .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .col { background: var(--wash); border-radius: 16px; padding: 10px; min-height: 180px; }
+  .col h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .lead {
+    background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; border: 1px solid var(--line);
+  }
+  .lead strong { display: block; font-size: 14px; }
+  .lead p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 7px; }
+  .tag.high { background: var(--ok-bg); color: var(--ok); }
+  .tag.low { background: var(--wash); color: var(--muted); }
+  .tag.neg { background: var(--bad-bg); color: var(--bad); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .actions button, .text-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700;
+  }
+  .actions button.primary { background: var(--link); border-color: var(--link); color: #fff; }
+  .split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+  .drawer { background: var(--wash); border-radius: 16px; padding: 14px; max-height: 520px; overflow: auto; }
+  .md h3 { margin: 12px 0 6px; font-size: 15px; }
+  .md p, .md li { font-size: 14px; line-height: 1.5; color: var(--ink); }
+  .cite { font-size: 13px; }
+  .cite a { color: var(--link); }
+  .bars { display: grid; gap: 8px; margin-top: 8px; }
+  .bar { display: grid; grid-template-columns: 88px 1fr 28px; gap: 8px; align-items: center; font-size: 12px; font-weight: 700; }
+  .bar i { display: block; height: 8px; border-radius: 99px; background: var(--link); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); }
+  .draft {
+    white-space: pre-wrap; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+    font-size: 14px; line-height: 1.5; min-height: 160px; width: 100%;
+  }
+  .why { background: var(--warn-bg); color: var(--warn); border-radius: 12px; padding: 10px 12px; font-size: 13px; font-weight: 600; }
+  .toast {
+    position: fixed; z-index: 50; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: #202124; color: #fff; font-weight: 600; font-size: 14px;
+    padding: 12px 16px; border-radius: 8px; max-width: min(560px, 92vw);
+  }
+  .toast[hidden] { display: none !important; }
+  .status-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  @keyframes draw {
+    from { stroke-dashoffset: 46; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: no-preference) {
+    .ico-bob { animation: bob 2.8s ease-in-out infinite; }
+    .tile:nth-child(2) .ico-bob { animation-delay: .12s; }
+    .tile:nth-child(3) .ico-bob { animation-delay: .24s; }
+    .tile:nth-child(4) .ico-bob { animation-delay: .36s; }
+    .tile:nth-child(5) .ico-bob { animation-delay: .08s; }
+    .tile:nth-child(6) .ico-bob { animation-delay: .2s; }
+    .tile:nth-child(7) .ico-bob { animation-delay: .32s; }
+    .tile:nth-child(8) .ico-bob { animation-delay: .44s; }
+    #gate .int-ico:nth-child(2) .ico-bob { animation-delay: .15s; }
+    #gate .int-ico:nth-child(3) .ico-bob { animation-delay: .3s; }
+    #gate .int-ico:nth-child(4) .ico-bob { animation-delay: .45s; }
+    #gate .icon-btn svg {
+      stroke-dasharray: 46;
+      stroke-dashoffset: 46;
+      animation: draw 1.8s ease infinite alternate;
+    }
+    .spin { animation: spin .9s linear infinite; }
+    .phase.on { animation: pulse 1.4s ease-in-out infinite; }
+    .tile { transition: transform .18s ease; }
+    .tile:hover { transform: translateY(-2px); }
+  }
+  @keyframes pulse { 50% { opacity: 0.55; } }
+
+  @media (max-width: 980px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .studio { grid-template-columns: 1fr; width: min(720px, calc(100% - 24px)); }
+    .panel { min-height: 0; }
+    .side-dots { display: none; }
+  }
+  @media (max-width: 900px) {
+    .board, .split { grid-template-columns: 1fr; }
+    #gate .links, #gate .rail { display: none; }
+    #gate .card { height: auto; min-height: 0; }
+    #gate .nav, #gate .copy, #gate .popular { position: relative; left: auto; right: auto; top: auto; transform: none; width: auto; }
+    #gate .nav { padding: 18px 16px 0; }
+    #gate .copy, #gate .popular { padding: 20px 16px; }
+    #view-home { padding: 88px 16px 120px; }
+    .dock { gap: 14px; }
+    .dock i { width: 44px; height: 44px; }
+    .top { gap: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .phase.on, .ico-bob, .spin, #gate .icon-btn svg, .studio-drawer { animation: none; transition: none; }
+  }
+  @media (max-width: 800px) {
+    .trend { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .trend-right { min-height: 460px; }
+    .trend-left { padding: 72px 24px 88px 56px; }
+    .trend-orbit { position: relative; left: auto; top: auto; transform: none; margin: 40px auto; width: min(320px, 80%); }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the desk</a>
+<section id="gate" class="scene" aria-label="Lead desk">
+  <section class="card" id="landCard">
+    <div class="shade" aria-hidden="true"></div>
+    <header class="nav">
+      <div class="brand">Lead</div>
+      <nav class="links" aria-label="Landing slides">
+        <button type="button" data-slide="0" class="on">Desk</button>
+        <button type="button" data-slide="1">Pipeline</button>
+        <button type="button" data-slide="2">Workspace</button>
+      </nav>
+      <div class="tools">
+        <button class="icon-btn" id="landSearchBtn" type="button" aria-label="Search the desk" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
+        </button>
+        <span class="avatar" aria-hidden="true">LD</span>
+      </div>
+    </header>
+    <form class="search-pop" id="landSearchPop" hidden>
+      <input id="landSearchInput" type="search" placeholder="Search leads" aria-label="Search leads">
+    </form>
+    <div class="rail" id="landRail" aria-label="Slides"></div>
+    <div class="copy">
+      <h1 id="landTitle">DESK</h1>
+      <p id="landBlurb"></p>
+      <button type="button" class="enter" id="gateEnter">Enter</button>
+    </div>
+    <section class="popular" aria-label="Workspace apps">
+      <div class="integrations">
+        <p>Workspace handoff</p>
+        <div class="int-row">
+          <span class="int-ico" role="img" aria-label="Google Sheets"><svg class="ico-bob" viewBox="0 0 24 24"><path fill="#0F9D58" d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z"/></svg></span>
+          <span class="int-ico" role="img" aria-label="Google Docs"><svg class="ico-bob" viewBox="0 0 24 24"><path fill="#4285F4" d="M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z"/></svg></span>
+          <span class="int-ico" role="img" aria-label="Google Drive"><svg class="ico-bob" viewBox="0 0 24 24"><path fill="#FFBA00" d="M12.01 1.485c-2.082 0-3.754.02-3.743.047.01.02 1.708 3.001 3.774 6.62l3.76 6.574h3.76c2.081 0 3.753-.02 3.742-.047-.005-.02-1.708-3.001-3.775-6.62l-3.76-6.574zm-4.76 1.73a789.828 789.861 0 0 0-3.63 6.319L0 15.868l1.89 3.298 1.885 3.297 3.62-6.335 3.618-6.33-1.88-3.287C8.1 4.704 7.255 3.22 7.25 3.214zm2.259 12.653-.203.348c-.114.198-.96 1.672-1.88 3.287a423.93 423.948 0 0 1-1.698 2.97c-.01.026 3.24.042 7.222.042h7.244l1.796-3.157c.992-1.734 1.85-3.23 1.906-3.323l.104-.167h-7.249z"/></svg></span>
+          <span class="int-ico" role="img" aria-label="Gmail"><svg class="ico-bob" viewBox="0 0 24 24"><path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg></span>
+        </div>
+      </div>
+      <p class="pop-label">Batches <i></i></p>
+      <div class="thumbs" id="landThumbs"></div>
+      <div class="pager" id="landPager"></div>
+    </section>
+  </section>
+</section>
+
+<div class="desk is-home" id="desk" hidden>
+  <nav class="top" aria-label="Desk">
+    <button type="button" class="home-link" data-view="home">Home</button>
+    <button type="button" class="icon-btn" id="appsBtn" aria-label="Open the page menu" aria-expanded="false" aria-controls="appsMenu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    </button>
+    <span class="avatar" aria-hidden="true">L</span>
+  </nav>
+  <div class="apps-menu" id="appsMenu" hidden></div>
+  <nav class="side-dots" id="sideDots" aria-label="Desk pages"></nav>
+  <nav class="dock" aria-label="Shortcuts">
+    <button type="button" data-view="map"><i style="background:#12b5a6;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></i>Territory</button>
+    <button type="button" data-view="run" data-start="1"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg></i>Research</button>
+    <button type="button" id="dockMenu"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="1.4" fill="currentColor"/><circle cx="12" cy="6" r="1.4" fill="currentColor"/><circle cx="18" cy="6" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="18" r="1.4" fill="currentColor"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/><circle cx="18" cy="18" r="1.4" fill="currentColor"/></svg></i>Menu</button>
+    <button type="button" data-view="studio"><i style="background:#f4ead7;color:#202124"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></i>Add shortcut</button>
+  </nav>
+  <main id="main">
+    <section class="view" id="view-home">
+      <h1 class="wordmark" id="homeTitle" tabindex="-1">Lead desk</h1>
+      <div class="grid" id="homeGrid"></div>
+    </section>
+
+    <section class="view studio" id="view-studio" hidden>
+      <aside class="panel sources">
+        <div class="panel-head">
+          <h2>Sources</h2>
+          <button type="button" class="ghost-icon" id="copySources" aria-label="Copy the source list">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <button type="button" class="add-src" id="addSources">
+          <svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          Add sources
+        </button>
+        <button type="button" class="saved-src" id="savedSources">Saved sources</button>
+        <label class="src-row"><input type="checkbox" id="selectAll"> Select all</label>
+        <div id="sourceList"></div>
+        <input id="pdf" type="file" accept="application/pdf,.pdf" hidden>
+        <details class="batch">
+          <summary>Batch profile</summary>
+          <label>Profile <input id="icp" value="Independent logistics operators in the United States with public evidence of manual dispatch"></label>
+          <label>Industry <input id="industry" value="Logistics"></label>
+          <label>Region <input id="region" value="United States"></label>
+          <label>Max leads
+            <select id="maxLeads" aria-label="Maximum leads">
+              <option>4</option><option selected>8</option><option>15</option>
+            </select>
+          </label>
+          <label>Route
+            <select id="route" aria-label="Research route">
+              <option value="free">Free Flash</option>
+              <option value="paid">Deep Research</option>
+              <option value="demo">Demo cache</option>
+            </select>
+          </label>
+        </details>
+      </aside>
+      <section class="panel doc" aria-label="Lead sheet">
+        <div class="doc-main">
+          <div class="doc-mark" id="docMark"></div>
+          <h1 id="deskTitle" tabindex="-1">Lead Generation.xlsx</h1>
+          <p class="meta" id="sourceMeta">1 source · Nov 11, 2026</p>
+          <p class="doc-copy">Add a grounding PDF. The desk writes this batch from public sources. Drafts stay in Gmail until you approve them.</p>
+          <div class="doc-text" id="docText">
+            <p>High rows can receive a briefing, a calendar link, and a task due on the date 48 hours later. A negative match stays on the sheet only.</p>
+            <p>Nothing on this desk sends an email.</p>
+          </div>
+        </div>
+        <div class="studio-dock">
+          <form class="studio-ask" id="askForm">
+            <input id="askInput" type="text" placeholder="Ask a question or create something" autocomplete="off" aria-label="Ask a question or create something">
+            <em id="sourceCount">0 sources</em>
+            <button type="submit" class="studio-go" aria-label="Ask">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V6M6.5 11 12 5.5 17.5 11"/></svg>
+            </button>
+          </form>
+          <p class="studio-note">Public sources only. A draft is not an email.</p>
+        </div>
+      </section>
+      <aside class="panel tools">
+        <h2>Studio</h2>
+        <div class="tool-grid" id="toolGrid"></div>
+      </aside>
+    </section>
+
+    <section class="view file-stage" id="view-workspace" hidden>
+      <h1>Google Workspace</h1>
+      <p class="file-sub">Recent Sheets, Docs, Drive, and Gmail arrivals.</p>
+      <div id="fileCards"></div>
+    </section>
+
+    <section class="view page" id="view-run" hidden>
+      <p class="wordmark" id="runTitle">Research</p>
+      <div class="quote-card" role="status">
+        <h2 id="runHeading">Planning the search</h2>
+        <p class="lede" id="runLede">The batch stays on this desk until Sheets confirms the rows.</p>
+        <div class="phases" id="phases" aria-label="Research phase"></div>
+        <div class="actions">
+          <button type="button" class="primary" id="runResearch">Run research</button>
+          <button type="button" id="simLimit">Show rate limit</button>
+          <button type="button" id="simTimeout">Show timeout</button>
+          <button type="button" id="simResume">Resume batch</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view page" id="view-pipeline" hidden>
+      <div class="quote-card">
+        <h2>Lead pipeline</h2>
+        <p class="lede">One column per Workspace handoff. High-intent rows are green. A negative search match stays red and does not create a draft.</p>
+        <div class="board" id="board"></div>
+      </div>
+    </section>
+
+    <section class="view page" id="view-report" hidden>
+      <div class="quote-card">
+        <div class="split">
+          <div>
+            <h2 id="reportCompany">Report</h2>
+            <p class="lede">Final markdown, citations, and the source mix. Charts are counts from this batch, not a live market feed.</p>
+            <div class="md" id="reportBody"></div>
+          </div>
+          <aside class="drawer" aria-label="Report anchors">
+            <h3 style="margin-top:0">Source mix</h3>
+            <div class="bars" id="bars"></div>
+            <h3>Citations</h3>
+            <ul class="cite" id="cites"></ul>
+          </aside>
+        </div>
+        <div class="actions">
+          <button type="button" data-view="pipeline">Back to pipeline</button>
+          <button type="button" class="primary" id="openDraft">Review Gmail draft</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view page" id="view-draft" hidden>
+      <div class="quote-card">
+        <h2>Gmail draft</h2>
+        <p class="lede">Nothing is sent from this desk. Approving the pitch writes the draft and clears the follow-up task.</p>
+        <label for="draftBody" class="lede">Draft body</label>
+        <textarea class="draft" id="draftBody"></textarea>
+        <p class="why" id="taskWhy"></p>
+        <div class="actions">
+          <button type="button" class="primary" id="approveDraft">Approve pitch and clear task</button>
+          <button type="button" id="holdDraft">Keep task</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view page" id="view-accounts" hidden>
+      <div class="quote-card">
+        <h2>Accounts</h2>
+        <p class="lede">Public company rows from the batch. This is the account list, without a hazard globe.</p>
+        <table>
+          <thead><tr><th>Company</th><th>Domain</th><th>Headquarters</th><th>Distance</th></tr></thead>
+          <tbody id="accountRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view page" id="view-pains" hidden>
+      <div class="quote-card">
+        <h2>Pain points</h2>
+        <p class="lede">Sourced problems and negative matches. A negative match means the search did not support a pitch.</p>
+        <div id="painList"></div>
+      </div>
+    </section>
+
+    <section class="view page" id="view-priority" hidden>
+      <div class="quote-card">
+        <h2>Priority</h2>
+        <p class="lede">High is the only band that creates a briefing, a calendar link, and a 48-hour task.</p>
+        <table>
+          <thead><tr><th>Company</th><th>Priority</th><th>What happens</th></tr></thead>
+          <tbody id="priorityRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view page" id="view-map" hidden>
+      <div class="quote-card">
+        <h2>Territory</h2>
+        <p class="lede">Headquarters grouped for local sales. Coordinates come from the Apps Script Maps geocoder, not a hazard layer.</p>
+        <table>
+          <thead><tr><th>Company</th><th>Group</th><th>Coordinates</th></tr></thead>
+          <tbody id="mapRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="view-lead" hidden>
+      <div class="trend-wrap">
+        <article class="trend">
+          <div class="trend-left">
+            <button type="button" class="trend-scroll" id="scrollLead">Scroll Down</button>
+            <div class="trend-copy">
+              <h1 id="leadHeadline"></h1>
+              <p id="leadContext"></p>
+              <button type="button" class="trend-more" id="leadMore">Read the brief</button>
+            </div>
+            <div class="trend-share">
+              <span>Share With :</span>
+              <button type="button" data-sheet="workspace" aria-label="Sheet">Sheets</button>
+              <button type="button" data-sheet="report" aria-label="Briefing">Docs</button>
+              <button type="button" data-sheet="draft" aria-label="Gmail draft"></button>
+            </div>
+          </div>
+          <div class="trend-right">
+            <button type="button" class="trend-menu" id="leadMenu" aria-label="Open the page menu"><span></span><span></span><span></span></button>
+            <div class="trend-rail">
+              <div class="trend-meter">
+                <button type="button" id="leadMarkPhoto">3</button>
+                <i></i>
+                <button type="button" id="leadMarkContact">6</button>
+              </div>
+              <div class="trend-pads" aria-hidden="true"><span></span><span class="on"></span></div>
+            </div>
+          </div>
+          <div class="trend-orbit">
+            <div class="trend-ring" aria-hidden="true"></div>
+            <div class="trend-photo"><img id="leadPhoto" alt=""></div>
+            <button type="button" class="trend-play" id="leadPlay" aria-label="Show the contact"></button>
+            <svg class="trend-scribble" viewBox="0 0 70 110" aria-hidden="true"><path d="M38 6c-18 16 22 24-6 46-20 16 18 28 2 52" fill="none" stroke="#141414" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </div>
+        </article>
+      </div>
+      <section class="lead-contact" id="leadContact">
+        <p class="kicker">Contact</p>
+        <h2 id="contactCompany"></h2>
+        <dl>
+          <div><dt>Headquarters</dt><dd id="contactHq"></dd></div>
+          <div><dt>Domain</dt><dd id="contactDomain"></dd></div>
+          <div><dt>Email</dt><dd id="contactEmail"></dd></div>
+          <div><dt>Priority</dt><dd id="contactPriority"></dd></div>
+          <div><dt>Source</dt><dd><a id="contactSource" href=""></a></dd></div>
+        </dl>
+      </section>
+    </section>
+  </main>
+</div>
+<aside class="studio-drawer" id="studioDrawer" aria-hidden="true">
+  <div class="studio-drawer-bar">
+    <p class="studio-kicker" id="studioDrawerKicker">Studio</p>
+    <button type="button" id="studioDrawerClose">Close</button>
+  </div>
+  <h2 id="studioDrawerTitle"></h2>
+  <div id="studioDrawerBody"></div>
+</aside>
+<div class="toast" id="toast" hidden role="status"></div>
+<p class="status-live" id="live" aria-live="polite"></p>
+<script>
+const brandPath = {
+  sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
+  docs: "M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z",
+  drive: "M12.01 1.485c-2.082 0-3.754.02-3.743.047.01.02 1.708 3.001 3.774 6.62l3.76 6.574h3.76c2.081 0 3.753-.02 3.742-.047-.005-.02-1.708-3.001-3.775-6.62l-3.76-6.574zm-4.76 1.73a789.828 789.861 0 0 0-3.63 6.319L0 15.868l1.89 3.298 1.885 3.297 3.62-6.335 3.618-6.33-1.88-3.287C8.1 4.704 7.255 3.22 7.25 3.214zm2.259 12.653-.203.348c-.114.198-.96 1.672-1.88 3.287a423.93 423.948 0 0 1-1.698 2.97c-.01.026 3.24.042 7.222.042h7.244l1.796-3.157c.992-1.734 1.85-3.23 1.906-3.323l.104-.167h-7.249z",
+  gmail: "M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"
+};
+const brandFill = { sheets: "#0F9D58", docs: "#4285F4", drive: "#FFBA00", gmail: "#EA4335" };
+const glyph = {
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
+  building: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+  activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  bars: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  map: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>',
+  slides: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+  tasks: '<path d="M11 6h10"/><path d="M11 12h10"/><path d="M11 18h10"/><path d="M3 6h1"/><path d="M3 12h1"/><path d="M3 18h1"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'
+};
+function icon(name) {
+  if (brandPath[name]) {
+    return `<svg class="ico-bob" viewBox="0 0 24 24" aria-hidden="true"><path fill="${brandFill[name]}" d="${brandPath[name]}"/></svg>`;
+  }
+  return `<svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph[name] || ""}</svg>`;
+}
+const spinner = `<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="14 40" stroke-linecap="round"/></svg>`;
+
+const slides = [
+  { title: "DESK", text: "Start from an ideal customer profile. The desk shows planning, search, and drafting while the batch is still running." },
+  { title: "PIPELINE", text: "Leads move from Discovered to a Drive briefing, a Gmail draft, and a task only after a person can see why." },
+  { title: "WORKSPACE", text: "Sheets, Docs, Drive, and Gmail drafts are the handoff. The pitch stays here until you approve it." }
+];
+const thumbs = [
+  { label: "DESK", color: "#12324a" },
+  { label: "PIPELINE", color: "#0d6b32" },
+  { label: "WORKSPACE", color: "#174ea6" }
+];
+const leads = [
+  { id: "northwind", company: "Northwind Analytics", domain: "northwind.example", hq: "San Francisco, CA", distance: "Local group", coords: "37.79, -122.39", priority: "High", pain: "Job posts describe account research as a full-day manual task.", hook: "A RevOps role opened this month.", source: "https://example.com/northwind", photo: "northwind.jpg", stage: "discovered", negative: false, task: "Review pitch deck for Northwind Analytics", taskWhy: "High priority. The task is due on the calendar date 48 hours after the batch, because Google Tasks stores a date." },
+  { id: "contoso", company: "Contoso Fabrication", domain: "contoso.example", hq: "Chicago, IL", distance: "Midwest", coords: "41.88, -87.64", priority: "Low", pain: "No public pain point.", hook: "", source: "https://example.com/contoso", photo: "contoso.jpg", stage: "discovered", negative: true, task: "", taskWhy: "Negative match. No draft, briefing, or task was created." }
+];
+const tiles = [
+  { view: "studio", title: "Upload", copy: "Pick files from the desktop", icon: "upload", color: "#1a73e8" },
+  { view: "run", title: "Research", copy: "Planning, search, and drafts", icon: "calendar", color: "#188038", start: true },
+  { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
+  { view: "pipeline", title: "Pipeline", copy: "Discovered through the task", icon: "sparkles", color: "#1a73e8" },
+  { view: "accounts", title: "Accounts", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
+  { view: "pains", title: "Pain points", copy: "Sourced problems and misses", icon: "activity", color: "#e37400" },
+  { view: "priority", title: "Priority", copy: "High rows and the 48-hour task", icon: "bars", color: "#188038" },
+  { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" }
+];
+const tools = [
+  { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
+  { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
+  { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
+  { sheet: "pipeline", title: "Pipeline", copy: "Stage counts", icon: "bars", color: "#d93025" },
+  { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4", start: true },
+  { sheet: "workspace", title: "Lead sheet", copy: "Google Sheets", icon: "sheets" },
+  { sheet: "tasks", title: "Tasks", copy: "48-hour follow-up", icon: "tasks", color: "#1a73e8" },
+  { sheet: "draft", title: "Drafts", copy: "Gmail, not sent", icon: "gmail" }
+];
+const menuItems = [
+  ["studio", "Upload"],
+  ["run", "Research"],
+  ["workspace", "Google Workspace"],
+  ["pipeline", "Pipeline"],
+  ["accounts", "Accounts"],
+  ["pains", "Pain points"],
+  ["priority", "Priority"],
+  ["map", "Territory"],
+  ["draft", "Gmail draft"]
+];
+const dotViews = [
+  ["home", "Home"],
+  ["studio", "Lead desk"],
+  ["run", "Research"],
+  ["workspace", "Google Workspace"],
+  ["pipeline", "Pipeline"],
+  ["accounts", "Accounts"],
+  ["map", "Territory"]
+];
+let sourceSeq = 2;
+const sources = [{ id: "src-1", name: "Lead Generation.xlsx", kind: "File", saved: false }];
+let savedOnly = false;
+let slide = 0;
+let timer = null;
+let phase = "idle";
+let selected = leads[0];
+const phases = [
+  ["plan", "Planning"],
+  ["search", "Searching"],
+  ["draft", "Drafting"],
+  ["sync", "Syncing to Sheets"]
+];
+
+const gate = document.getElementById("gate");
+const landTitle = document.getElementById("landTitle");
+const landBlurb = document.getElementById("landBlurb");
+const landRail = document.getElementById("landRail");
+const landThumbs = document.getElementById("landThumbs");
+const landPager = document.getElementById("landPager");
+
+function paintGate(next) {
+  slide = (next + slides.length) % slides.length;
+  landTitle.textContent = slides[slide].title;
+  landBlurb.textContent = slides[slide].text;
+  landRail.querySelectorAll("button").forEach((button, index) => button.classList.toggle("on", index === slide));
+  landThumbs.querySelectorAll("button").forEach((button, index) => button.classList.toggle("on", index === slide));
+  landPager.querySelectorAll("button").forEach((button, index) => button.classList.toggle("on", index === slide));
+  document.querySelectorAll("#gate .links button").forEach((button) => button.classList.toggle("on", Number(button.dataset.slide) === slide));
+}
+slides.forEach((_, index) => {
+  const rail = document.createElement("button");
+  rail.type = "button";
+  rail.setAttribute("aria-label", slides[index].title);
+  rail.onclick = () => paintGate(index);
+  landRail.appendChild(rail);
+  const thumb = document.createElement("button");
+  thumb.type = "button";
+  thumb.textContent = thumbs[index].label;
+  thumb.style.background = thumbs[index].color;
+  thumb.onclick = () => paintGate(index);
+  landThumbs.appendChild(thumb);
+  const dot = document.createElement("button");
+  dot.type = "button";
+  dot.setAttribute("aria-label", "Slide " + (index + 1));
+  dot.onclick = () => paintGate(index);
+  landPager.appendChild(dot);
+});
+paintGate(0);
+document.querySelectorAll("#gate .links button").forEach((button) => {
+  button.onclick = () => paintGate(Number(button.dataset.slide));
+});
+document.getElementById("landSearchBtn").onclick = () => {
+  const pop = document.getElementById("landSearchPop");
+  const open = pop.hasAttribute("hidden");
+  pop.toggleAttribute("hidden", !open);
+  document.getElementById("landSearchBtn").setAttribute("aria-expanded", String(open));
+  if (open) document.getElementById("landSearchInput").focus();
+};
+document.getElementById("gateEnter").onclick = openDesk;
+
+function iconWrap(item) {
+  const color = item.color ? ` style="color:${item.color}"` : "";
+  return `<span class="tile-ico"${color}>${icon(item.icon)}</span>`;
+}
+document.getElementById("homeGrid").innerHTML = tiles.map((item) =>
+  `<button class="tile" type="button" data-view="${item.view}"${item.start ? ' data-start="1"' : ""}>${iconWrap(item)}<span class="tile-copy"><b>${item.title}</b><small>${item.copy}</small></span></button>`
+).join("");
+document.getElementById("toolGrid").innerHTML = tools.map((item) =>
+  `<button class="tool" type="button" data-sheet="${item.sheet}"${item.start ? ' data-start="1"' : ""}><span style="color:${item.color || "inherit"}">${icon(item.icon)}</span><span><b>${item.title}</b><small>${item.copy}</small></span></button>`
+).join("");
+["sheets", "docs", "gmail"].forEach((name, index) => {
+  const button = document.querySelectorAll(".trend-share button")[index];
+  if (button) button.innerHTML = icon(name);
+});
+document.getElementById("docMark").innerHTML = icon("sheets");
+document.getElementById("appsMenu").innerHTML = menuItems.map(([view, label]) =>
+  `<button type="button" data-view="${view}">${label}</button>`
+).join("");
+document.getElementById("sideDots").innerHTML = dotViews.map(([view, label]) =>
+  `<button type="button" data-view="${view}" aria-label="${label}"></button>`
+).join("");
+
+function setMenu(open) {
+  document.getElementById("appsMenu").hidden = !open;
+  document.getElementById("appsBtn").setAttribute("aria-expanded", String(open));
+}
+document.getElementById("appsBtn").onclick = (event) => {
+  event.stopPropagation();
+  setMenu(document.getElementById("appsMenu").hidden);
+};
+document.getElementById("dockMenu").onclick = (event) => {
+  event.stopPropagation();
+  setMenu(document.getElementById("appsMenu").hidden);
+};
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#appsMenu") && !event.target.closest("#appsBtn") && !event.target.closest("#dockMenu")) setMenu(false);
+});
+
+function openDesk() {
+  gate.hidden = true;
+  document.getElementById("desk").hidden = false;
+  show("studio");
+  document.getElementById("deskTitle").focus();
+}
+const sheetMeta = {
+  map: ["Maps", "Territory"],
+  report: ["Google Docs", "Briefings"],
+  slides: ["Google Slides", "Slide deck"],
+  pipeline: ["Pipeline", "Lead pipeline"],
+  run: ["Research", "Research"],
+  workspace: ["Google Sheets", "Data table"],
+  tasks: ["Google Tasks", "Tasks"],
+  draft: ["Google Gmail", "Email"],
+  accounts: ["Accounts", "Accounts"],
+  pains: ["Pain points", "Pain points"],
+  priority: ["Priority", "Priority"]
+};
+function inSheet() {
+  return document.getElementById("studioDrawer").classList.contains("is-open");
+}
+function drawerBody(name) {
+  if (name === "run") {
+    return researchBody(document.getElementById("runHeading").textContent, document.getElementById("runLede").textContent);
+  }
+  if (name === "draft") return mailBody();
+  if (name === "slides") {
+    return leads.map((lead, index) => `<article class="slide-card"><b>${index + 1}. ${escapeHtml(lead.company)}</b><span>${escapeHtml(lead.pain)}</span><span>${escapeHtml(lead.hook || "No public hook. A slide is not created.")}</span></article>`).join("");
+  }
+  if (name === "tasks") {
+    const rows = leads.filter((lead) => lead.task);
+    return rows.map((lead) => `<article class="task-card"><b>${escapeHtml(lead.task)}</b><span>${escapeHtml(lead.taskWhy)}</span></article>`).join("") || "<p>No tasks for this batch. A High row creates a task due on the date 48 hours later.</p>";
+  }
+  if (name === "workspace") {
+    const headers = ["Company", "Domain", "Headquarters", "Priority", "Stage"];
+    const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(stageLabel(lead.stage))}</td></tr>`).join("");
+    return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+  if (name === "map") {
+    return `<div class="map-list">${leads.map((lead) => `<button type="button" data-lead="1" data-id="${lead.id}"><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(lead.hq)} · ${escapeHtml(lead.coords)}</small></button>`).join("")}</div>`;
+  }
+  if (name === "report") {
+    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p><p>${escapeHtml(lead.hook || "No public hook. A briefing is not created.")}</p></article>`).join("");
+  }
+  if (name === "pipeline") return leads.map((lead) => card(lead)).join("");
+  if (name === "accounts") {
+    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b> ${escapeHtml(lead.domain)}</p><p>${escapeHtml(lead.hq)} · ${escapeHtml(lead.distance)}</p></article>`).join("");
+  }
+  if (name === "pains") {
+    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p></article>`).join("");
+  }
+  if (name === "priority") {
+    return leads.map((lead) => `<article class="task-card"><b>${escapeHtml(lead.company)}</b><span>${lead.priority === "High" ? "Briefing, calendar link, and a 48-hour task." : "Sheet row only."}</span></article>`).join("");
+  }
+  return "<p>No preview is on the desk yet.</p>";
+}
+function mailBody() {
+  const lead = selected;
+  if (!lead || lead.negative || !lead.hook) {
+    return "<p>No pitch is on the desk yet. A High row with a public hook fills this preview. Nothing is sent from this desk.</p>";
+  }
+  const letter = `Hi,\n\nI was reading about ${lead.company} and this stood out: ${lead.hook}\n\nIf this is relevant I can send the short brief. If it is not, no need to reply.\n\nDraft only. Review the sources before sending.`;
+  return `<article class="mail-sheet"><p><b>To</b> No public email is on file.</p><p><b>Subject</b> ${escapeHtml(lead.company)}</p><pre>${escapeHtml(letter)}</pre><p>Ready in Gmail. Nothing is sent from this desk.</p></article>`;
+}
+function researchBody(heading, lede) {
+  return `<p><b>${escapeHtml(heading)}</b></p><p>${escapeHtml(lede)}</p><div class="actions"><button type="button" data-sim="runResearch">Run research</button><button type="button" data-sim="simLimit">Show rate limit</button><button type="button" data-sim="simTimeout">Show timeout</button><button type="button" data-sim="simResume">Resume batch</button></div>`;
+}
+function closeSheet() {
+  const drawer = document.getElementById("studioDrawer");
+  drawer.classList.remove("is-open");
+  drawer.setAttribute("aria-hidden", "true");
+}
+function openSheet(name) {
+  const pair = sheetMeta[name] || ["Studio", "Preview"];
+  const drawer = document.getElementById("studioDrawer");
+  document.getElementById("studioDrawerKicker").textContent = pair[0];
+  document.getElementById("studioDrawerTitle").textContent = pair[1];
+  document.getElementById("studioDrawerBody").innerHTML = drawerBody(name);
+  bindLeadActions();
+  drawer.setAttribute("aria-hidden", "false");
+  drawer.classList.remove("is-open");
+  void drawer.offsetWidth;
+  drawer.classList.add("is-open");
+}
+function paintView(name) {
+  if (name === "pipeline") renderBoard();
+  if (name === "workspace") renderWorkspace();
+  if (name === "accounts") renderAccounts();
+  if (name === "pains") renderPains();
+  if (name === "priority") renderPriority();
+  if (name === "map") renderMap();
+  if (name === "studio") renderSources();
+  if (name === "report") renderReport();
+  if (name === "draft") renderDraft();
+  if (name === "lead") renderLead();
+}
+function show(name) {
+  closeSheet(true);
+  setMenu(false);
+  document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== "view-" + name; });
+  document.getElementById("desk").classList.toggle("is-home", name === "home");
+  const homeLink = document.querySelector(".home-link");
+  if (name === "home") homeLink.setAttribute("aria-current", "page");
+  else homeLink.removeAttribute("aria-current");
+  document.querySelectorAll(".side-dots button").forEach((button) => {
+    if (button.dataset.view === name) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
+  });
+  paintView(name);
+}
+function reveal(name) {
+  if (inSheet()) openSheet(name);
+  else show(name);
+}
+document.getElementById("studioDrawerClose").onclick = () => closeSheet(false);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && inSheet()) closeSheet(false);
+});
+document.body.addEventListener("click", (event) => {
+  if (event.target.closest("[data-del]")) return;
+  const sim = event.target.closest("[data-sim]");
+  if (sim) {
+    document.getElementById(sim.dataset.sim).click();
+    return;
+  }
+  const leadButton = event.target.closest("[data-lead]");
+  if (leadButton) {
+    const lead = leads.find((item) => item.id === leadButton.dataset.id);
+    if (lead) selected = lead;
+    show("lead");
+    return;
+  }
+  const sheetButton = event.target.closest("[data-sheet]");
+  if (sheetButton && !sheetButton.closest("#gate")) {
+    if (sheetButton.dataset.id) {
+      const lead = leads.find((item) => item.id === sheetButton.dataset.id);
+      if (lead) selected = lead;
+    }
+    openSheet(sheetButton.dataset.sheet);
+    if (sheetButton.dataset.start === "1") startRun();
+    return;
+  }
+  const button = event.target.closest("[data-view]");
+  if (!button || button.closest("#gate")) return;
+  if (button.dataset.id) {
+    const lead = leads.find((item) => item.id === button.dataset.id);
+    if (lead) selected = lead;
+    show("lead");
+    return;
+  }
+  if (button.dataset.start === "1") startRun();
+  else show(button.dataset.view);
+});
+
+function setLive(text) {
+  document.getElementById("live").textContent = text;
+}
+function toast(text) {
+  const node = document.getElementById("toast");
+  node.hidden = false;
+  node.textContent = text;
+  setLive(text);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { node.hidden = true; }, 4200);
+}
+function paintPhases(active, failed) {
+  document.getElementById("phases").innerHTML = phases.map(([id, label], index) => {
+    const activeIndex = phases.findIndex((item) => item[0] === active);
+    let cls = "phase";
+    if (failed && id === active) cls += failed === "limit" ? " bad" : " warn";
+    else if (index < activeIndex) cls += " done";
+    else if (id === active) cls += " on";
+    const spin = cls.includes("on") ? spinner : "";
+    return `<span class="${cls}">${spin}${label}</span>`;
+  }).join("");
+}
+function startRun() {
+  clearTimeout(timer);
+  phase = "plan";
+  if (inSheet()) openSheet("run");
+  else show("run");
+  const profile = document.getElementById("icp").value;
+  step("plan", "Planning the search", "Flash is splitting the profile into three public search queries. " + profile);
+  timer = setTimeout(() => {
+    phase = "search";
+    step("search", "Searching public sources", "Google Search grounding is running. This desk does not open social sites.");
+    timer = setTimeout(() => {
+      phase = "draft";
+      step("draft", "Drafting the briefing", "The markdown table and the High-priority briefing are being written.");
+      timer = setTimeout(() => finishRun(), 1200);
+    }, 1200);
+  }, 900);
+}
+function syncResearchDrawer() {
+  if (!inSheet()) return;
+  if (document.getElementById("studioDrawerTitle").textContent !== "Research") return;
+  document.getElementById("studioDrawerBody").innerHTML = researchBody(
+    document.getElementById("runHeading").textContent,
+    document.getElementById("runLede").textContent
+  );
+}
+function step(id, heading, lede) {
+  phase = id;
+  document.getElementById("runHeading").textContent = heading;
+  document.getElementById("runLede").textContent = lede;
+  paintPhases(id);
+  setLive(heading + ". " + lede);
+  syncResearchDrawer();
+}
+function finishRun() {
+  phase = "sync";
+  paintPhases("sync");
+  document.getElementById("runHeading").textContent = "Sheets sync complete";
+  document.getElementById("runLede").textContent = "Two rows are on the pipeline. Northwind is High. Contoso is a negative match.";
+  leads.forEach((lead) => { if (lead.priority === "High") lead.stage = "task"; });
+  toast("Batch synced to Google Sheets. Northwind briefing is ready for review.");
+  reveal("pipeline");
+}
+document.getElementById("runResearch").onclick = () => startRun();
+document.getElementById("simLimit").onclick = () => {
+  clearTimeout(timer);
+  phase = "search";
+  reveal("run");
+  document.getElementById("runHeading").textContent = "Search paused at the free-tier cap";
+  document.getElementById("runLede").textContent = "gemini-2.5-flash grounding is 500 requests a day. This batch stopped before a second research run. Resume uses the saved notes.";
+  paintPhases("search", "limit");
+  setLive("Rate limit. Search paused.");
+  syncResearchDrawer();
+};
+document.getElementById("simTimeout").onclick = () => {
+  clearTimeout(timer);
+  phase = "draft";
+  reveal("run");
+  document.getElementById("runHeading").textContent = "Drafting timed out";
+  document.getElementById("runLede").textContent = "The partial notes are kept. Resume continues from drafting and does not start a new Deep Research interaction.";
+  paintPhases("draft", "timeout");
+  setLive("Timeout while drafting.");
+  syncResearchDrawer();
+};
+document.getElementById("simResume").onclick = () => startRun();
+
+function stageLabel(stage) {
+  return { discovered: "Discovered", briefing: "Briefing created", draft: "Draft ready", task: "Action required", archived: "Archived" }[stage] || stage;
+}
+function renderBoard() {
+  const columns = ["discovered", "briefing", "draft", "task"];
+  document.getElementById("board").innerHTML = columns.map((stage) => {
+    const cards = leads.filter((lead) => lead.stage === stage).map((lead) => card(lead)).join("");
+    const titles = { discovered: "Discovered", briefing: "Briefing created (Drive)", draft: "Draft ready (Gmail)", task: "Action required (Tasks)" };
+    return `<section class="col"><h3>${titles[stage]}</h3>${cards || ""}</section>`;
+  }).join("");
+  bindLeadActions();
+}
+function card(lead) {
+  const tag = lead.negative ? "neg" : lead.priority === "High" ? "high" : "low";
+  const label = lead.negative ? "Negative match" : lead.priority;
+  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${lead.id}">${lead.company}</button><p>${lead.pain}</p><span class="tag ${tag}">${label}</span><div class="actions">
+    <button type="button" data-act="report" data-id="${lead.id}">Open report</button>
+    <button type="button" data-act="research" data-id="${lead.id}">Re-research company</button>
+    ${lead.priority === "High" && lead.stage === "task" ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch and clear task</button>` : ""}
+    <button type="button" data-act="archive" data-id="${lead.id}">Archive lead</button>
+  </div></article>`;
+}
+function bindLeadActions() {
+  document.querySelectorAll("[data-act]").forEach((button) => {
+    button.onclick = () => act(button.dataset.act, button.dataset.id);
+  });
+}
+function act(name, id) {
+  const lead = leads.find((item) => item.id === id);
+  if (!lead) return;
+  if (name === "report") { selected = lead; show("lead"); return; }
+  if (name === "research") {
+    toast("Re-research queued for " + lead.company + ". The previous row stays until the new batch syncs.");
+    startRun();
+    return;
+  }
+  if (name === "archive") {
+    lead.stage = "archived";
+    toast(lead.company + " archived. Workspace files were not deleted.");
+    renderBoard();
+    if (inSheet()) openSheet("pipeline");
+    return;
+  }
+  if (name === "approve") {
+    selected = lead;
+    lead.stage = "draft";
+    toast("Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
+    reveal("draft");
+  }
+}
+function renderReport() {
+  const lead = selected;
+  document.getElementById("reportCompany").textContent = lead.company;
+  document.getElementById("reportBody").innerHTML = `<h3>${lead.company}</h3><p>${lead.pain}</p><p>${lead.hook || "No public hook. A draft is not created."}</p><p>Priority: ${lead.priority}. Headquarters: ${lead.hq}.</p>`;
+  const mix = lead.negative ? [["Careers", 10], ["News", 20], ["No fit", 70]] : [["Careers", 55], ["News", 30], ["Site", 15]];
+  document.getElementById("bars").innerHTML = mix.map(([label, value]) =>
+    `<div class="bar"><span>${label}</span><i style="width:${value}%"></i><span>${value}</span></div>`
+  ).join("");
+  document.getElementById("cites").innerHTML = `<li><a href="${lead.source}">${lead.source}</a></li>`;
+}
+document.getElementById("openDraft").onclick = () => reveal("draft");
+function renderDraft() {
+  const lead = selected;
+  const body = lead.hook
+    ? `Hi,\n\nI was reading about ${lead.company} and this stood out: ${lead.hook}\n\nIf this is relevant I can send the short brief. If it is not, no need to reply.\n\nDraft only. Review the sources before sending.`
+    : "No public hook, so this draft stays empty.";
+  document.getElementById("draftBody").value = body;
+  document.getElementById("taskWhy").textContent = lead.taskWhy;
+}
+document.getElementById("approveDraft").onclick = () => {
+  if (selected.negative || !selected.hook) {
+    toast("No pitch to approve. A negative match does not create a Gmail draft.");
+    return;
+  }
+  selected.stage = "draft";
+  toast("Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
+  reveal("pipeline");
+};
+document.getElementById("holdDraft").onclick = () => {
+  toast("Draft kept. The task stays on the board.");
+  reveal("pipeline");
+};
+function renderWorkspace() {
+  const rows = [
+    { name: "Lead Generation.xlsx", meta: "File · 2026-11-11 09:23", view: "studio", icon: "sheets" },
+    ...leads.map((lead, index) => ({
+      name: lead.company + ".xlsx",
+      meta: lead.negative ? "Negative match · no draft" : "File · 2026-11-11 09:2" + (4 + index),
+      view: "report",
+      id: lead.id,
+      icon: "sheets"
+    })),
+    { name: "Briefing - Northwind Analytics", meta: "Doc · 2026-11-11 09:24", view: "report", id: "northwind", icon: "docs" },
+    { name: "Draft - Northwind Analytics", meta: "Gmail · not sent", view: "draft", id: "northwind", icon: "gmail" }
+  ];
+  document.getElementById("fileCards").innerHTML = rows.map((row) =>
+    `<button class="file-card" type="button" data-view="${row.view}"${row.id ? ` data-id="${row.id}"` : ""}><span class="file-ico">${icon(row.icon)}</span><span><b>${row.name}</b><small>${row.meta}</small></span></button>`
+  ).join("");
+}
+function renderAccounts() {
+  document.getElementById("accountRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.domain}</td><td>${lead.hq}</td><td>${lead.distance}</td></tr>`).join("");
+}
+function renderPains() {
+  document.getElementById("painList").innerHTML = leads.map((lead) => `<article class="lead"><strong>${lead.company}</strong><p>${lead.pain}</p><span class="tag ${lead.negative ? "neg" : "high"}">${lead.negative ? "Negative match" : "Sourced"}</span></article>`).join("");
+}
+function renderPriority() {
+  document.getElementById("priorityRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.priority}</td><td>${lead.priority === "High" ? "Briefing, calendar link, and task" : "Sheet row only"}</td></tr>`).join("");
+}
+function renderMap() {
+  document.getElementById("mapRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.distance}</td><td>${lead.coords}</td></tr>`).join("");
+}
+
+function visibleSources() {
+  return savedOnly ? sources.filter((item) => item.saved) : sources;
+}
+function renderSources() {
+  const rows = visibleSources();
+  document.getElementById("sourceList").innerHTML = rows.map((item) =>
+    `<div class="src-line"><label class="src-row"><input type="checkbox" class="src-check" data-id="${item.id}" ${item.saved ? "checked" : ""}> ${escapeHtml(item.name)}</label><button type="button" class="src-del" data-del="${item.id}">Delete</button><span class="src-kind">${escapeHtml(item.kind)}</span></div>`
+  ).join("") || `<p class="meta">No saved sources yet.</p>`;
+  document.querySelectorAll(".src-check").forEach((box) => {
+    box.onchange = () => {
+      const item = sources.find((source) => source.id === box.dataset.id);
+      if (item) item.saved = box.checked;
+      paintSourceCount();
+    };
+  });
+  paintSourceCount();
+}
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch]));
+}
+function paintSourceCount() {
+  const saved = sources.filter((item) => item.saved).length;
+  const noun = (count) => count + (count === 1 ? " source" : " sources");
+  document.getElementById("sourceMeta").textContent = noun(sources.length) + " · Nov 11, 2026";
+  document.getElementById("sourceCount").textContent = noun(saved);
+  const selectAll = document.getElementById("selectAll");
+  selectAll.checked = sources.length > 0 && saved === sources.length;
+  selectAll.indeterminate = saved > 0 && saved < sources.length;
+}
+document.getElementById("sourceList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-del]");
+  if (!button) return;
+  const index = sources.findIndex((item) => item.id === button.dataset.del);
+  if (index >= 0) sources.splice(index, 1);
+  renderSources();
+});
+document.getElementById("addSources").onclick = () => document.getElementById("pdf").click();
+document.getElementById("pdf").onchange = () => {
+  const files = Array.from(document.getElementById("pdf").files || []);
+  files.forEach((file) => sources.push({ id: "src-" + (sourceSeq++), name: file.name, kind: "File", saved: true }));
+  renderSources();
+  if (files.length) toast(files.length + " file added on this machine. Nothing was uploaded.");
+};
+document.getElementById("savedSources").onclick = () => {
+  savedOnly = !savedOnly;
+  renderSources();
+  toast(savedOnly ? "Showing saved sources." : "Showing every source.");
+};
+document.getElementById("selectAll").onchange = () => {
+  const on = document.getElementById("selectAll").checked;
+  sources.forEach((item) => { item.saved = on; });
+  renderSources();
+};
+document.getElementById("copySources").onclick = async () => {
+  const text = sources.map((item) => item.name).join("\n");
+  try { await navigator.clipboard.writeText(text); } catch (error) { /* the toast still confirms the copy action */ }
+  toast("Source list copied.");
+};
+function renderLead() {
+  const lead = selected;
+  document.getElementById("leadHeadline").textContent = lead.pain;
+  document.getElementById("leadContext").textContent = [
+    lead.hook || "No public hook. A draft is not created.",
+    "Headquarters in " + lead.hq + ". Priority " + lead.priority + ".",
+    lead.negative ? "A negative match does not create a briefing or a task." : "The pitch stays a draft until you approve it."
+  ].join(" ");
+  const photo = document.getElementById("leadPhoto");
+  photo.src = lead.photo;
+  photo.alt = "Photograph of " + lead.company;
+  document.getElementById("contactCompany").textContent = lead.company;
+  document.getElementById("contactHq").textContent = lead.hq;
+  document.getElementById("contactDomain").textContent = lead.domain;
+  document.getElementById("contactEmail").textContent = "No public email is on file.";
+  document.getElementById("contactPriority").textContent = lead.negative ? "Low. Sheet row only." : "High. Briefing, calendar link, and a task due on the date 48 hours later.";
+  const source = document.getElementById("contactSource");
+  source.href = lead.source;
+  source.textContent = lead.source;
+}
+function scrollToContact() {
+  document.getElementById("leadContact").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+document.getElementById("scrollLead").onclick = scrollToContact;
+document.getElementById("leadMore").onclick = scrollToContact;
+document.getElementById("leadPlay").onclick = scrollToContact;
+document.getElementById("leadMarkContact").onclick = scrollToContact;
+document.getElementById("leadMarkPhoto").onclick = () => document.getElementById("view-lead").scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+document.getElementById("leadMenu").onclick = (event) => {
+  event.stopPropagation();
+  setMenu(document.getElementById("appsMenu").hidden);
+};
+renderSources();
+document.getElementById("askForm").onsubmit = (event) => {
+  event.preventDefault();
+  const input = document.getElementById("askInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const box = document.getElementById("docText");
+  const asked = document.createElement("p");
+  asked.textContent = text;
+  const reply = document.createElement("p");
+  reply.textContent = "Noted on the desk. Run research when the profile is ready. The pitch is not sent.";
+  box.append(asked, reply);
+  input.value = "";
+  document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
+};
+paintPhases("idle");
+const requested = new URLSearchParams(location.search).get("view");
+if (requested && document.getElementById("view-" + requested)) {
+  gate.hidden = true;
+  document.getElementById("desk").hidden = false;
+  show(requested);
+}
+</script>
+</body>
+</html>
