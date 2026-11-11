@@ -1454,23 +1454,17 @@ function profileBody() {
   return body;
 }
 function deskHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  let token = "";
-  try { token = localStorage.getItem("lead-desk-token") || ""; } catch (error) { token = ""; }
-  if (!token && window.deskToken) token = String(window.deskToken);
-  if (token) headers["X-Desk-Token"] = token;
-  return headers;
+  try { localStorage.removeItem("lead-desk-token"); } catch (error) { /* the cookie is the credential */ }
+  return { "Content-Type": "application/json" };
 }
-function deskSend(method, url, body, allowPrompt) {
+function deskSend(method, url, body, allowRetry) {
   return fetch(url, {
     method: method,
     headers: deskHeaders(),
+    credentials: "same-origin",
     body: body == null ? undefined : JSON.stringify(body)
   }).then((response) => {
-    if (response.status !== 401 || !allowPrompt) return response;
-    const token = window.prompt("Enter the desk token");
-    if (!token) return response;
-    try { localStorage.setItem("lead-desk-token", token.trim()); } catch (error) { window.deskToken = token.trim(); }
+    if (response.status !== 401 || !allowRetry) return response;
     return deskSend(method, url, body, false);
   });
 }
