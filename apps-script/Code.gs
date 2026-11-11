@@ -311,85 +311,138 @@ function getOrCreateFolder_(props) {
   return created;
 }
 
+var COLUMN_MAPS_ = {};
+
 function ensureSheet_(spreadsheet, name, headers) {
   var sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-    return sheet;
   }
-  var width = Math.max(sheet.getLastColumn(), headers.length);
-  var current = sheet.getRange(1, 1, 1, width).getValues()[0];
-  var same = headers.every(function (header, index) { return current[index] === header; });
-  if (!same) {
-    throw new Error('Sheet "' + name + '" has an unexpected header row. Point SPREADSHEET_ID at a new spreadsheet or rename that tab.');
-  }
+  rememberColumns_(sheet, headers);
   return sheet;
+}
+
+function rememberColumns_(sheet, headers) {
+  var map = {};
+  var width = sheet.getLastColumn();
+  var current = width ? sheet.getRange(1, 1, 1, width).getValues()[0] : [];
+  for (var i = 0; i < current.length; i += 1) {
+    var name = String(current[i] || '').trim();
+    if (name && map[name] == null) map[name] = i + 1;
+  }
+  var missing = headers.filter(function (header) { return map[header] == null; });
+  if (missing.length) {
+    var start = Math.max(width, 0) + 1;
+    sheet.getRange(1, start, 1, missing.length).setValues([missing]).setFontWeight('bold');
+    missing.forEach(function (header, index) { map[header] = start + index; });
+  }
+  COLUMN_MAPS_[String(sheet.getSheetId())] = map;
+  return map;
+}
+
+function column_(sheet, header) {
+  var map = COLUMN_MAPS_[String(sheet.getSheetId())] || {};
+  return map[header] || 0;
+}
+
+function readCell_(row, sheet, header) {
+  var index = column_(sheet, header) - 1;
+  if (index < 0 || index >= row.length) return '';
+  return row[index];
+}
+
+function sheetKey_(value) {
+  var text = String(value == null ? '' : value).trim();
+  if (text.charAt(0) === "'") text = text.slice(1).trim();
+  return text.toLowerCase();
+}
+
+function writeMappedRow_(sheet, rowNumber, fields) {
+  var max = 1;
+  Object.keys(fields).forEach(function (header) {
+    var column = column_(sheet, header);
+    if (column > max) max = column;
+  });
+  var width = Math.max(sheet.getLastColumn(), max);
+  var existing = rowNumber <= sheet.getLastRow() && width
+    ? sheet.getRange(rowNumber, 1, 1, width).getValues()[0]
+    : [];
+  var row = [];
+  for (var i = 0; i < width; i += 1) row.push(existing[i] == null ? '' : existing[i]);
+  Object.keys(fields).forEach(function (header) {
+    var column = column_(sheet, header);
+    if (column) row[column - 1] = fields[header];
+  });
+  sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
 }
 
 function findRun_(sheet, interactionId) {
   var values = sheet.getDataRange().getValues();
+  var wanted = sheetKey_(interactionId);
   for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][0]) === interactionId) {
-      return { reportUrl: values[i][3], status: values[i][4] };
+    if (sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wanted) {
+      return {
+        row: i + 1,
+        reportUrl: readCell_(values[i], sheet, 'Report URL'),
+        status: readCell_(values[i], sheet, 'Status')
+      };
     }
   }
   return null;
 }
 
 function recordRun_(sheet, interactionId, leadCount, reportUrl, status) {
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][0]) === interactionId) {
-      sheet.getRange(i + 1, 1, 1, RUN_HEADERS.length).setValues([[
-        interactionId,
-        new Date().toISOString(),
-        leadCount,
-        reportUrl,
-        status
-      ]]);
-      return;
-    }
-  }
-  sheet.appendRow([interactionId, new Date().toISOString(), leadCount, reportUrl, status]);
+  var prior = findRun_(sheet, interactionId);
+  var fields = {
+    'Interaction ID': interactionId,
+    'Processed At': new Date().toISOString(),
+    'Lead Count': leadCount,
+    'Report URL': reportUrl,
+    'Status': status
+  };
+  writeMappedRow_(sheet, prior ? prior.row : sheet.getLastRow() + 1, fields);
 }
 
 function leadExists_(sheet, interactionId, lead) {
   var values = sheet.getDataRange().getValues();
+  var wantedId = sheetKey_(interactionId);
+  var wantedCompany = sheetKey_(lead.company);
+  var wantedDomain = sheetKey_(lead.domain);
   for (var i = 1; i < values.length; i += 1) {
-    var sameRun = String(values[i][1]) === String(interactionId);
-    var sameCompany = String(values[i][2]).toLowerCase() === lead.company.toLowerCase();
-    var sameDomain = lead.domain && String(values[i][3]).toLowerCase() === lead.domain;
+    var sameRun = sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wantedId;
+    var sameCompany = sheetKey_(readCell_(values[i], sheet, 'Company')) === wantedCompany;
+    var sameDomain = wantedDomain && sheetKey_(readCell_(values[i], sheet, 'Domain')) === wantedDomain;
     if (sameRun && (sameCompany || sameDomain)) return true;
   }
   return false;
 }
 
 function appendLead_(sheet, lead, body, outcome) {
-  sheet.appendRow([
-    body.generatedAt || new Date().toISOString(),
-    body.interactionId,
-    asCell_(lead.company),
-    asCell_(lead.domain),
-    asCell_(lead.hqAddress),
-    outcome.latitude,
-    outcome.longitude,
-    outcome.distanceKm,
-    asCell_(lead.contactName),
-    asCell_(lead.title),
-    asCell_(lead.email),
-    asCell_(lead.painPoint),
-    asCell_(lead.hook),
-    asCell_(lead.priority),
-    asCell_(lead.source),
-    outcome.briefingUrl,
-    outcome.draftId,
-    outcome.calendarEventIds.join(', '),
-    outcome.taskId,
-    outcome.taskDue,
-    asCell_(outcome.notes.join(' | '))
-  ]);
+  writeMappedRow_(sheet, sheet.getLastRow() + 1, {
+    'Generated At': body.generatedAt || new Date().toISOString(),
+    'Interaction ID': body.interactionId,
+    'Company': asCell_(lead.company),
+    'Domain': asCell_(lead.domain),
+    'HQ Address': asCell_(lead.hqAddress),
+    'Latitude': outcome.latitude,
+    'Longitude': outcome.longitude,
+    'Distance Km': outcome.distanceKm,
+    'Contact Name': asCell_(lead.contactName),
+    'Contact Title': asCell_(lead.title),
+    'Contact Email': asCell_(lead.email),
+    'Pain Point': asCell_(lead.painPoint),
+    'Hook': asCell_(lead.hook),
+    'Priority': asCell_(lead.priority),
+    'Source': asCell_(lead.source),
+    'Briefing URL': outcome.briefingUrl,
+    'Draft ID': outcome.draftId,
+    'Calendar Event IDs': outcome.calendarEventIds.join(', '),
+    'Task ID': outcome.taskId,
+    'Task Due': outcome.taskDue,
+    'Notes': asCell_(outcome.notes.join(' | '))
+  });
 }
 
 function asCell_(value) {
@@ -627,19 +680,27 @@ function eventMatches_(event, domain, company) {
 
 function createOutreachDraft_(lead, seller) {
   var needsRecipient = !looksLikeEmail_(lead.email);
-  var recipient = lead.email;
+  var recipient = needsRecipient ? '' : lead.email;
   var subject = buildSubject_(lead);
   if (needsRecipient) {
-    recipient = Session.getActiveUser().getEmail();
-    if (!recipient) throw new Error('No public contact email, and the account email is unavailable.');
+    try {
+      recipient = Session.getActiveUser().getEmail() || '';
+    } catch (err) {
+      recipient = '';
+    }
     subject = '[Needs recipient] ' + subject;
   }
 
   var existingId = findDraftBySubject_(subject);
   if (existingId) return { id: existingId, needsRecipient: needsRecipient };
 
-  var draft = GmailApp.createDraft(recipient, subject, buildDraftBody_(lead, seller));
-  return { id: draft.getId(), needsRecipient: needsRecipient };
+  try {
+    var draft = GmailApp.createDraft(recipient || '', subject, buildDraftBody_(lead, seller));
+    return { id: draft.getId(), needsRecipient: needsRecipient };
+  } catch (err) {
+    Logger.log(err);
+    return { id: '', needsRecipient: needsRecipient };
+  }
 }
 
 function findDraftBySubject_(subject) {
@@ -730,8 +791,12 @@ function findOpenTask_(tasklist, title) {
 
 function findLeadRow_(sheet, interactionId, company) {
   var values = sheet.getDataRange().getValues();
+  var wantedId = sheetKey_(interactionId);
+  var wantedCompany = sheetKey_(company);
   for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][1]) === interactionId && String(values[i][2]) === company) return i + 1;
+    var sameRun = sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wantedId;
+    var sameCompany = sheetKey_(readCell_(values[i], sheet, 'Company')) === wantedCompany;
+    if (sameRun && sameCompany) return i + 1;
   }
   return 0;
 }
@@ -748,26 +813,27 @@ function approveLead_(body, config) {
   if (!row) {
     return json_({ ok: false, sent: false, error: 'That lead is not on the sheet yet. Nothing was saved in Gmail.' });
   }
-  var values = sheet.getRange(row, 1, 1, LEAD_HEADERS.length).getValues()[0];
-  var hook = cleanField_(values[12]);
-  var priority = cleanField_(values[13]);
+  var values = sheet.getRange(row, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  var hook = cleanField_(readCell_(values, sheet, 'Hook'));
+  var priority = cleanField_(readCell_(values, sheet, 'Priority'));
   if (!hook || priority.toLowerCase().indexOf('high') !== 0) {
     return json_({ ok: false, sent: false, error: 'A negative match does not create a draft. Nothing was sent.' });
   }
-  var existingDraft = cleanField_(values[16]);
+  var existingDraft = cleanField_(readCell_(values, sheet, 'Draft ID'));
   if (existingDraft) {
     return json_({ ok: true, sent: false, duplicate: true, draftId: existingDraft, taskCleared: false });
   }
   var lead = {
     company: company,
-    email: cleanField_(values[10]),
-    contactName: cleanField_(values[8]),
-    painPoint: cleanField_(values[11]),
+    email: cleanField_(readCell_(values, sheet, 'Contact Email')),
+    contactName: cleanField_(readCell_(values, sheet, 'Contact Name')),
+    painPoint: cleanField_(readCell_(values, sheet, 'Pain Point')),
     hook: hook
   };
   var draft = createOutreachDraft_(lead, { name: config.sellerName, offering: config.sellerOffering });
-  sheet.getRange(row, 17).setValue(asCell_(draft.id));
-  var taskId = cleanField_(values[18]);
+  var draftColumn = column_(sheet, 'Draft ID');
+  if (draftColumn && draft.id) sheet.getRange(row, draftColumn).setValue(asCell_(draft.id));
+  var taskId = cleanField_(readCell_(values, sheet, 'Task ID'));
   var taskCleared = false;
   if (taskId && typeof Tasks !== 'undefined' && Tasks.Tasks) {
     try {

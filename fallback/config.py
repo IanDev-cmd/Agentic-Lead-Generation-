@@ -52,6 +52,8 @@ class Settings:
     offering: str
     seller_name: str
     icp: str
+    research_company: str
+    research_domain: str
     max_leads: int
     grounding_calls_per_run: int
     request_timeout_seconds: int
@@ -92,6 +94,8 @@ class Settings:
             seller_name=clean_text(os.environ.get("SELLER_NAME", ""), 120),
             icp=clean_text(os.environ.get("IDEAL_CUSTOMER_PROFILE", ""), 500)
             or "Operating companies with a public signal of the problem this offering addresses",
+            research_company=clean_text(os.environ.get("RESEARCH_COMPANY", ""), 200),
+            research_domain=clean_text(os.environ.get("RESEARCH_DOMAIN", ""), 200),
             max_leads=min(15, max(1, max_leads)),
             grounding_calls_per_run=min(8, max(3, per_run)),
             request_timeout_seconds=min(180, max(15, timeout)),

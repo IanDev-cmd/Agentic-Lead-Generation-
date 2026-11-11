@@ -4,11 +4,11 @@ import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
-import { demoLeads } from './lib/leads.js';
-import { businessEnv, deskAuthorized, executeDryRun, redactSecrets } from './lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
+import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
-import { loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
+import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 
 const root = process.cwd();
 const webRoot = path.resolve(root, 'web');
@@ -130,7 +130,7 @@ async function handleApi(request, response, url) {
     return;
   }
   if (request.method === 'GET' && url.pathname === '/api/leads') {
-    send(response, 200, { ok: true, leads: demoLeads(root) });
+    send(response, 200, { ok: true, leads: allLeads(root) });
     return;
   }
   const runMatch = url.pathname.match(/^\/api\/runs\/([^/]+)$/);
@@ -166,6 +166,14 @@ async function handleApi(request, response, url) {
     const files = Array.isArray(body.files) ? body.files.slice(0, 12) : [];
     const sources = saveUploads(root, files);
     send(response, sources.some((item) => item.ok) ? 200 : 422, { ok: sources.some((item) => item.ok), sources });
+    return;
+  }
+  const sourceMatch = url.pathname.match(/^\/api\/sources\/([^/]+)$/);
+  if (request.method === 'DELETE' && sourceMatch) {
+    const removed = deleteUpload(root, decodeURIComponent(sourceMatch[1]));
+    send(response, removed ? 200 : 404, removed
+      ? { ok: true }
+      : { ok: false, error: 'That source is not on this desk.' });
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/google') {
@@ -224,7 +232,8 @@ async function handleApi(request, response, url) {
         urls: built.urls,
         tabular: built.tabular,
       });
-      send(response, 200, { ok: true, explanation: answer.explanation, leads: answer.leads });
+      const leads = rememberLeads(root, answer.leads);
+      send(response, 200, { ok: true, explanation: answer.explanation, leads });
     } catch (error) {
       const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
       send(response, 502, { ok: false, error: message || 'Gemini did not answer. Nothing was written to Sheets.' });
@@ -241,7 +250,8 @@ async function handleApi(request, response, url) {
     }
     const id = randomUUID();
     const outputDir = path.join(root, 'output', 'runs', id);
-    const run = await executeDryRun(outputDir, { ...process.env, ...businessEnv(body) });
+    const run = await executeRun(outputDir, { ...process.env, ...businessEnv(body) });
+    const stored = rememberLeads(root, run.leads || []);
     const result = run.result || {
       ok: false,
       synced: false,
@@ -251,9 +261,10 @@ async function handleApi(request, response, url) {
       id,
       ok: Boolean(result.ok && result.synced !== false),
       synced: Boolean(result.synced),
-      interactionId: result.interactionId || '',
+      interactionId: result.interactionId || stored[0]?.interactionId || '',
       error: result.error || '',
       appsScript: result.appsScript || null,
+      leads: stored,
     };
     runs.set(id, record);
     send(response, record.ok ? 200 : 424, record);
@@ -262,7 +273,7 @@ async function handleApi(request, response, url) {
   const approveMatch = url.pathname.match(/^\/api\/leads\/([^/]+)\/approve$/);
   if (request.method === 'POST' && approveMatch) {
     const id = decodeURIComponent(approveMatch[1]);
-    const lead = demoLeads(root).find((item) => item.id === id);
+    const lead = findLead(root, id);
     if (!lead) {
       send(response, 404, { ok: false, sent: false, error: 'That lead is not on this desk.' });
       return;

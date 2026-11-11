@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -8,7 +8,9 @@ import { shouldDelegate } from '../lib/route.js';
 import { demoLeads } from '../lib/leads.js';
 import { askPrompt, parseLeadAnswer } from '../lib/ask.js';
 import { officeText } from '../lib/office.js';
-import { businessEnv, deskAuthorized, executeDryRun } from '../lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeDryRun, executeRun } from '../lib/desk-run.js';
+import { leadsFromMarkdown } from '../lib/lead-store.js';
+import { deleteUpload, saveUploads } from '../lib/uploads.js';
 
 process.env.GOOGLE_WEBHOOK_URL = '';
 process.env.WEBHOOK_SECRET = '';
@@ -118,11 +120,15 @@ test('webhook callers do not put the secret in the JSON body', () => {
   const index = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const script = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const python = readFileSync(new URL('../fallback/pipeline.py', import.meta.url), 'utf8');
+  const desk = readFileSync(new URL('../lib/desk-run.js', import.meta.url), 'utf8');
   assert.equal(index.includes('secret: config.webhookSecret'), false);
   assert.equal(script.includes('body.secret'), false);
   assert.equal(python.includes('"secret": settings.webhook_secret'), false);
+  assert.equal(python.includes('X-Webhook-Secret'), true);
   assert.equal(script.includes('findDraftBySubject_'), true);
   assert.equal(script.includes('findOpenTask_'), true);
+  assert.equal(script.includes('sheetKey_'), true);
+  assert.equal(desk.includes("DRY_RUN: 'true'"), false);
 });
 
 test('a dry run with no webhook reports that nothing was written', async () => {
@@ -133,10 +139,70 @@ test('a dry run with no webhook reports that nothing was written', async () => {
     WEBHOOK_SECRET: '',
     GEMINI_API_KEY: '',
     DRY_RUN: 'true',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: '',
+    BILLING_ENABLED: 'false',
+    FORCE_FREE_TIER: 'false',
   });
   assert.equal(run.code, 0);
   assert.equal(run.result.synced, false);
   assert.match(run.result.error, /Nothing was written/);
+  assert.equal(run.leads[0].company, 'Northwind Analytics');
+  assert.equal(run.leads[0].interactionId.startsWith('dry-run-'), true);
+});
+
+test('a company re-research stays on that company during a dry run', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-focus-'));
+  const run = await executeRun(dir, {
+    ...process.env,
+    DRY_RUN: 'true',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: '',
+    GOOGLE_WEBHOOK_URL: '',
+    WEBHOOK_SECRET: '',
+    GEMINI_API_KEY: '',
+    RESEARCH_COMPANY: 'EdTech Academy',
+    RESEARCH_DOMAIN: 'academy.example',
+  });
+  assert.equal(run.code, 0);
+  assert.equal(run.leads.length, 1);
+  assert.equal(run.leads[0].company, 'EdTech Academy');
+  assert.equal(run.leads[0].domain, 'academy.example');
+  assert.equal(run.leads[0].hook, '');
+});
+
+test('a live run keeps DRY_RUN false and does not write the fixture', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-live-'));
+  const run = await executeRun(dir, {
+    ...process.env,
+    DRY_RUN: 'false',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: 'paid',
+    BILLING_ENABLED: 'false',
+    FORCE_FREE_TIER: 'false',
+    GEMINI_API_KEY: '',
+    GOOGLE_WEBHOOK_URL: '',
+    WEBHOOK_SECRET: '',
+    SELLER_OFFERING: '',
+    TARGET_INDUSTRY: '',
+  });
+  assert.notEqual(run.code, 0);
+  assert.match(run.stderr, /GEMINI_API_KEY/);
+  assert.equal(run.leads.length, 0);
+});
+
+test('discovered leads keep their interaction id and a deleted source removes both files', () => {
+  const parsed = leadsFromMarkdown([
+    '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |',
+    '| Northwind | northwind.example | Chicago | Ada | Ops | unknown | Manual dispatch | Public case study | High | notes.pdf |',
+  ].join('\n'), 'batch-1');
+  assert.equal(parsed[0].interactionId, 'batch-1');
+  assert.equal(parsed[0].negative, false);
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-src-'));
+  const saved = saveUploads(dir, [{ name: 'notes.txt', mime: 'text/plain', data: Buffer.from('hello').toString('base64') }]);
+  assert.equal(deleteUpload(dir, saved[0].id), true);
+  assert.equal(existsSync(path.join(dir, 'output', 'uploads', `${saved[0].id}.bin`)), false);
+  assert.equal(existsSync(path.join(dir, 'output', 'uploads', `${saved[0].id}.json`)), false);
 });
 
 test('the desk API returns leads and rejects a missing token', async () => {

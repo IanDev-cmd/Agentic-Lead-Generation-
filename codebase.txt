@@ -7,7 +7,6 @@ output
 *.log
 __pycache__
 *.pyc
-
 ===== .env.example =====
 # Copy to .env and replace every placeholder.
 # .env is gitignored. Never commit a real key, webhook secret, or desk token.
@@ -71,7 +70,6 @@ FREE_GROUNDING_CALLS_PER_RUN=5
 RESUME_INTERACTION_ID=
 # Replay a saved markdown file. Use this after a webhook failure.
 REPORT_FILE=
-
 ===== .gitignore =====
 node_modules/
 .env
@@ -81,281 +79,36 @@ __pycache__/
 *.pyc
 __pycache__/
 *.pyc
-
-===== AUDIT.md =====
-# Integration and code audit
-
-Reviewed after the desk was connected to the API. Score below replaces the 11 Nov 2026 finding of 46 / 100.
-
-## Executive summary
-
-**Health score: 100 / 100.**
-
-The browser talks only to the Node desk server. That server holds the webhook secret and is the only component that calls Apps Script. Research posts the saved table and shows the Apps Script result. Approve creates a Gmail draft only after a synced row exists, and the response says nothing was sent. A missing webhook, a missing run, a negative match, and a rejected desk token all stay on the screen as errors.
-
-Apps Script still answers HTTP 200, which the platform does not let a script change. The desk never uses that status. `server.js` returns 200, 401, 404, 409, 422, 424, 429, or 502.
-
-## Frontend-backend integration matrix
-
-### Fully connected routes
-
-| Caller | Method and path | Callee | Result the desk shows |
-| --- | --- | --- | --- |
-| Desk lead list | `GET /api/leads` | `demoLeads()` | Companies from `fallback/demo_leads.json`. Unknown emails stay blank. |
-| Desk Research | `POST /api/runs` | `node index.js` with `DRY_RUN=true`, then Apps Script `doPost` when a webhook is configured | `ok` and `synced`. If the webhook is empty, the desk says nothing was written. |
-| Desk run status | `GET /api/runs/:id` | In-memory run record | The same result. |
-| Desk Approve | `POST /api/leads/:id/approve` | Apps Script `action: approve` | Draft id, or the reason no draft was saved. `sent` is false. |
-| `index.js` and `fallback/pipeline.py` | `POST` Apps Script `/exec` | `doPost` | Header `X-Webhook-Secret` only. The JSON body has no secret. |
-| Render health check | `GET /api/health` | `server.js` | `{ ok: true }`. |
-
-### Orphaned backend endpoints
-
-None. `doGet` requires the same webhook header as `doPost`. `install()` remains the one-time editor setup and is not an HTTP route.
-
-### Broken frontend calls
-
-None. The Research and Approve buttons no longer announce a Google write that did not happen.
-
-## Code quality and architecture findings
-
-### Critical
-
-None open.
-
-Closed in this change:
-
-- The desk calls `/api/runs` and `/api/leads/:id/approve` instead of local toasts.
-- The webhook secret is not in the JSON body (`index.js`, `fallback/pipeline.py`, `Code.gs`).
-- `npm start` runs `server.js`, which stays listening. The one-shot research command is `npm run research` and the Render cron.
-
-### Warning
-
-None open.
-
-Closed in this change:
-
-- `doGet` rejects a missing or wrong secret.
-- Gmail draft lookup compares subjects in script. The lead text is not interpolated into the search query.
-- Task lookup follows `nextPageToken` instead of stopping at 100.
-- Lead fields rendered into HTML go through `escapeHtml`. Links use `http` or `https` only.
-- `test/health.test.js` covers the secret compare, formula prefix, route choice, empty webhook, and the 401 response.
-- The Docker image installs Node 22 and Python 3. `fallback/requirements.txt` pins `google-genai`.
-- A seller name sent with the run is used for that draft. Script properties are the fallback.
-- Caught Apps Script exceptions are logged and returned as a fixed sentence.
-- On Render, an empty `DESK_TOKEN` is minted at startup and stored in an HttpOnly cookie. It is not the webhook secret.
-
-### Optimization
-
-Closed for the current deploy: calendar scan walks seven-day chunks and stops at 500 events or five updates. The webhook stops itself before the Apps Script six-minute limit. The blueprint runs one web instance.
-
-The desk page is still one HTML file. The route, safety, and lead rules it depends on live in `lib/` and are what the tests run.
-
-## Actionable recommendations
-
-No open remediation. Before a live Gemini run, set `DRY_RUN=false` and keep `BILLING_ENABLED` as an explicit opt-in. The business profile is sent from the desk with that run.
-
-===== DESIGN.md =====
-# Lead desk layout
-
-The landing screen follows the Sequel gate in `HR.automata/index.html`: a full-bleed card, top brand and slide links, a vertical rail, a title and Enter button, and a bottom row of Workspace marks plus three batch thumbs. The photo file from that project is not in this repo, so the card uses the same frame with a dark scene behind the shade.
-
-The desk follows `skanyingi/Alpha` at main `9086044`: dark stage, Outfit wordmark, white search pill, white tiles, and a white result card. Two Alpha pages are left out: Hazard and Alpha Agents. Their tiles, globes, and specialist cards are not in this desk.
-
-Open `web/index.html`. Enter leaves the gate and opens the desk.
-
-## 1. Information architecture and agent status
-
-A batch is one research run. The desk never replaces the page with a spinner. The phase row stays visible: Planning, Searching, Drafting, Syncing to Sheets.
-
-| Phase | What the person sees | What is actually happening |
-| --- | --- | --- |
-| Planning | Blue pill, "Planning the search" | Flash splits the ICP into three public queries, or Deep Research is building its plan |
-| Searching | Blue pill, "Searching public sources" | Gemini Search grounding, or the Deep Research read loop |
-| Drafting | Blue pill, "Drafting the briefing" | Markdown table and High-priority briefing |
-| Syncing | Green pill after the webhook returns | Apps Script has appended the sheet rows |
-
-Completed phases stay green. The current phase is the only one that pulses, and the pulse is removed when the system asks for reduced motion. A live region repeats the same sentence for assistive technology.
-
-Rate limit, used when `gemini-2.5-flash` grounding hits its 500-request day cap: the Searching pill turns red, the heading says the batch stopped, and Resume continues from the saved notes. It does not start a second paid interaction.
-
-Timeout, used when drafting exceeds the wait: the Drafting pill turns amber. Resume continues from drafting. The partial notes stay on the desk.
-
-When Sheets confirms the rows, a dark toast sits at the bottom center: "Batch synced to Google Sheets. Northwind briefing is ready for review." The toast is also written to the live region. It does not steal focus. It leaves after about four seconds.
-
-## 2. Dashboard layout
-
-The gate is the only landing page. The desk is one workspace with these views:
-
-| View | Alpha pattern it keeps | Lead-desk content |
-| --- | --- | --- |
-| Desk | Wordmark, search pill, tile grid | ICP, industry, region, max leads, route, PDF |
-| Upload | Upload card | Local grounding PDF name only |
-| Lead pipeline | Event queue card | Four columns: Discovered, Briefing created (Drive), Draft ready (Gmail), Action required (Tasks) |
-| Google Workspace | Workspace card | Surface, state, and the reason text |
-| Accounts | Exposure list | Company, domain, headquarters, distance |
-| Pain points | Vulnerability list | Sourced pain, or a red negative match |
-| Priority | Financial result table | High creates briefing, calendar link, and task. Low is a sheet row only |
-| Territory | Map table, not the hazard globe | City group and coordinates |
-
-The report is a split inside the result card. The left side is the markdown. The right drawer holds a source-mix bar chart and citation links. Bars are counts for this batch. Citations are real URLs from the report, opened in the same tab as normal links.
-
-Bulk synthesis stays in the columns. The report opens for one company at a time, so a finished batch does not dump every briefing onto the home screen.
-
-## 3. Human review
-
-The Gmail draft is a textarea on the desk. Approving it marks the lead Draft ready and shows the toast that the draft was saved. The desk does not send mail. If the row is a negative match, Approve explains that no pitch was created.
-
-Calendar and Tasks are not a second calendar UI. The Workspace table and the amber reason under the draft use the same sentence that Apps Script writes into the event description and the task notes. For a High row that sentence includes the 48-hour due date. For a negative match it says no task was created.
-
-Quick actions sit on the lead card:
-
-| Action | Result |
-| --- | --- |
-| Open report | One-company drawer |
-| Re-research company | Queues a new batch and keeps the old row until the new sync |
-| Approve pitch and clear task | Saves the draft and moves the card to Action required until the person sends it |
-| Archive lead | Removes it from the active columns and does not delete Drive files |
-
-## 4. Accessibility, color, and speed
-
-Text on white uses `#202124`. Secondary text uses `#3c4043`, which stays above the WCAG 2.2 AA 4.5:1 ratio at 13px. Links and the avatar use `#174ea6` on white. High-intent tags use `#0d6b32` on `#e6f4ea`. Negative matches use `#8a1c1c` on `#fdecea`. Amber reasons use `#7a4e00` on `#fff8e1`. The bright `#0dd573` from the HR stylesheet is not used for text or small icons, because it fails on white.
-
-The search pill and the High tag are the loudest elements. Tiles, columns, and tables stay neutral. Focus is a 2px `#174ea6` ring, or white on the dark gate. The phase pulse is the only motion, and it is disabled for reduced motion.
-
-Type is Montserrat on the gate, Outfit for the desk wordmark, and Inter everywhere else. Titles are 18px semibold. Phase labels are 13px bold. Body copy is 14–16px at 1.5 line height.
-
-Hazard and Alpha Agents stay out of the navigation, the tile grid, and the pipeline.
-
-===== Dockerfile =====
-FROM node:22-bookworm-slim
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip \
-  && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-COPY . .
-RUN pip3 install --break-system-packages --no-cache-dir -r fallback/requirements.txt
-
-ENV PORT=10000
-EXPOSE 10000
-CMD ["node", "server.js"]
-
-===== README.md =====
-# Lead generation skeleton
-
-Local Node.js starts a Gemini Deep Research run, polls until the report is ready, and POSTs the markdown to a Google Apps Script web app. The script files leads into Sheets, writes a briefing doc for high-priority accounts, drafts an outreach email, geocodes headquarters, attaches the briefing to matching calendar events, and creates a follow-up task.
-
-```
-.env
-  |
-  v
-index.js
-  DRY_RUN / REPORT_FILE / RESUME -> existing Node paths
-  otherwise                      -> python -m fallback
-                                    BILLING_ENABLED and probe ok -> node index.js (LEADGEN_ROUTE=paid)
-                                      interactions.create + poll
-                                    DEMO_MODE -> fallback/demo_leads.json
-                                    otherwise -> Flash planner, Search grounding, reviewer, markdown
-  save output/last-report.md
-  POST JSON { secret, interactionId, markdown, seller }
-  |
-  v
-Apps Script doPost
-  authorize secret
-  parse the markdown table
-  Sheets  Docs  Drive  Gmail draft  Maps  Calendar  Tasks
-```
-
-`gemini-2.5-flash` grounding on the free tier is 500 requests per day, shared with Flash-Lite. The 5,000-search monthly figure on Google's pricing page applies to Gemini 3 and newer models. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
-
-## Free-tier boundary
-
-Sheets, Docs, Drive, Gmail drafts, the built-in Maps geocoder, Calendar, and Tasks run inside a normal Google account and Apps Script quotas. No Maps Platform key and no paid Workspace add-on is required.
-
-The Gemini side is narrower than "free":
-
-- The Interactions API has a free tier. On that tier, stored interactions are retained for one day. Background Deep Research requires `store: true`, so a failed webhook must be resumed or replayed inside that window.
-- Google's Deep Research documentation prices a typical `deep-research-preview-04-2026` task on a pay-as-you-go basis (their published estimate is about $1–$3, and the Max agent is higher). This skeleton does not treat that call as free. Confirm the key's project in AI Studio before `DRY_RUN=false`.
-- Visualizations are off, collaborative planning is off, and the Max agent is not the default. `DRY_RUN=true` exercises the webhook without calling Gemini. `RESUME_INTERACTION_ID` and `REPORT_FILE` recover a run that already finished.
-
-Apps Script consumer executions are limited to about six minutes. The webhook processes at most 15 leads, scans at most 500 calendar events, and updates at most five of them.
-
-## Security
-
-The web app has to be deployed as "Anyone" so Node can POST without a Google user session. `WEBHOOK_SECRET` is checked before any write. Use a random string of at least 16 characters, put the same value in `.env` and in Apps Script script properties, and treat the `/exec` URL like a credential.
-
-The research prompt tells the agent to leave unknown emails as `unknown`. The script does not invent a recipient. When no public email exists, the draft is addressed to the script owner and prefixed `[Needs recipient]`. Nothing is sent.
-
-Sheet cells that start with `=`, `+`, `-`, or `@` are prefixed so a model-written table cannot become a formula.
-
-## Local setup
-
-Requires Node.js 22 or newer (required by `@google/genai` 3.x).
-
-```powershell
-copy .env.example .env
-npm install
-npm start
-```
-
-With the example `.env`, `DRY_RUN=true` and the webhook URL is still a placeholder, so the first start fails until you either clear `GOOGLE_WEBHOOK_URL` (local fixture only) or paste a real `/exec` URL and secret.
-
-A live run needs `DRY_RUN=false`, `GEMINI_API_KEY`, `SELLER_OFFERING`, `TARGET_INDUSTRY`, the webhook URL, and the secret.
-
-If the process is interrupted after the interaction id is printed, the research continues on Google's side:
-
-```powershell
-# set RESUME_INTERACTION_ID in .env, then
-npm start
-```
-
-If the report was saved and the webhook failed:
-
-```powershell
-# REPORT_FILE=output/last-report.md
-npm start
-```
-
-Mode order is `REPORT_FILE`, then `DRY_RUN`, then `RESUME_INTERACTION_ID`, then a new research task.
-
-## Apps Script setup
-
-1. Create a project at [script.google.com](https://script.google.com).
-2. Replace `Code.gs` with `apps-script/Code.gs`.
-3. Open Project Settings, show the manifest, and replace it with `apps-script/appsscript.json`. Set `timeZone` to your timezone. `Etc/GMT-3` is UTC+3. Task due dates use this zone.
-4. In the editor, open Services and add the Google Tasks API if the manifest did not enable it. The symbol must be `Tasks`.
-5. Run `install` and approve the scopes. The log prints the spreadsheet URL and the "Leads Briefings" folder URL.
-6. In Project Settings > Script properties, set `WEBHOOK_SECRET` to the same value as `.env`. Optional: `HOME_BASE_ADDRESS` (used for distance), `SELLER_NAME`, `SELLER_OFFERING`, `CALENDAR_LOOKAHEAD_DAYS`, `MAX_LEADS`, `TASKLIST_ID`.
-7. Deploy > New deployment > Web app. Execute as **Me**. Who has access: **Anyone**. Copy the URL that ends in `/exec`.
-8. Open that URL in a browser. The JSON says whether the secret, spreadsheet, and folder are configured. It does not reveal the secret.
-
-`install` creates the spreadsheet and folder on first run and stores their ids in script properties. Run it before the first POST so the OAuth consent happens in the editor. A POST that arrives before consent gets an HTML error page; Node reports that as a non-JSON webhook response and leaves `output/last-report.md` in place.
-
-## Lead contract
-
-The agent is asked for one markdown table and a `## Briefing: {Company}` section for each High row. Structured output is not available on this agent, so the table is the contract.
-
-| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |
-
-Priority `High` creates the briefing doc, files it in Drive, scans the primary calendar, and creates "Review pitch deck for [Company]". Other rows are still written to Sheets. A draft is created only when the hook cell has public text.
-
-Google Tasks stores a due **date**, not a time. The task is due on the calendar date of the instant 48 hours after processing, in the script timezone. The exact UTC instant is written in the task notes.
-
-A repeated delivery of the same `interactionId` returns `duplicate: true` and does not create a second set of rows. Briefing files, drafts, and tasks are also looked up by stable title before a second one is created.
-
-## Failure behavior
-
-| What happened | What to do |
-| --- | --- |
-| Process killed while polling | `RESUME_INTERACTION_ID` |
-| Webhook rejected the payload | Fix Apps Script, then `REPORT_FILE=output/last-report.md` |
-| Report had no table | The file is saved and the webhook is not called |
-| One lead's geocode, doc, draft, or task failed | That row is still written. The Notes column and the JSON `errors` array carry the message |
-| Script lock was busy | Response is `retryable: true`. Node retries the POST with backoff |
-
+===== apps-script/appsscript.json =====
+{
+  "timeZone": "Etc/GMT-3",
+  "runtimeVersion": "V8",
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/presentations",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/tasks",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ],
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Tasks",
+        "version": "v1",
+        "serviceId": "tasks"
+      }
+    ]
+  },
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
+}
 ===== apps-script/Code.gs =====
 /**
  * Apps Script hub for the lead-generation webhook.
@@ -405,8 +158,8 @@ var HARD_LEAD_CAP = 15;
 function doGet(e) {
   var props = PropertiesService.getScriptProperties();
   var expected = props.getProperty('WEBHOOK_SECRET') || '';
-  if (!expected || !secretsMatch_(providedSecret_(e), expected)) {
-    return json_({ ok: false, error: 'Unauthorized webhook.' });
+  if (!expected || !secretsMatch_(providedSecret_(e), expected.trim())) {
+    return json_({ ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' });
   }
   return json_({
     ok: true,
@@ -449,7 +202,7 @@ function handlePost_(e) {
     return json_({ ok: false, error: 'WEBHOOK_SECRET is not set. Run install(), then set the script property.' });
   }
   if (!secretsMatch_(providedSecret_(e), config.secret)) {
-    return json_({ ok: false, error: 'Unauthorized webhook.' });
+    return json_({ ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' });
   }
 
   var lock = LockService.getScriptLock();
@@ -619,7 +372,7 @@ function readBody_(e) {
 
 function providedSecret_(e) {
   var headers = (e && e.headers) || {};
-  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '');
+  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '').trim();
 }
 
 function secretsMatch_(provided, expected) {
@@ -635,7 +388,7 @@ function getConfig_(payload) {
   var props = PropertiesService.getScriptProperties();
   var seller = payload.seller || {};
   return {
-    secret: props.getProperty('WEBHOOK_SECRET') || '',
+    secret: String(props.getProperty('WEBHOOK_SECRET') || '').trim(),
     sellerName: seller.name || props.getProperty('SELLER_NAME') || '',
     sellerOffering: seller.offering || props.getProperty('SELLER_OFFERING') || '',
     homeBase: props.getProperty('HOME_BASE_ADDRESS') || '',
@@ -670,85 +423,138 @@ function getOrCreateFolder_(props) {
   return created;
 }
 
+var COLUMN_MAPS_ = {};
+
 function ensureSheet_(spreadsheet, name, headers) {
   var sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-    return sheet;
   }
-  var width = Math.max(sheet.getLastColumn(), headers.length);
-  var current = sheet.getRange(1, 1, 1, width).getValues()[0];
-  var same = headers.every(function (header, index) { return current[index] === header; });
-  if (!same) {
-    throw new Error('Sheet "' + name + '" has an unexpected header row. Point SPREADSHEET_ID at a new spreadsheet or rename that tab.');
-  }
+  rememberColumns_(sheet, headers);
   return sheet;
+}
+
+function rememberColumns_(sheet, headers) {
+  var map = {};
+  var width = sheet.getLastColumn();
+  var current = width ? sheet.getRange(1, 1, 1, width).getValues()[0] : [];
+  for (var i = 0; i < current.length; i += 1) {
+    var name = String(current[i] || '').trim();
+    if (name && map[name] == null) map[name] = i + 1;
+  }
+  var missing = headers.filter(function (header) { return map[header] == null; });
+  if (missing.length) {
+    var start = Math.max(width, 0) + 1;
+    sheet.getRange(1, start, 1, missing.length).setValues([missing]).setFontWeight('bold');
+    missing.forEach(function (header, index) { map[header] = start + index; });
+  }
+  COLUMN_MAPS_[String(sheet.getSheetId())] = map;
+  return map;
+}
+
+function column_(sheet, header) {
+  var map = COLUMN_MAPS_[String(sheet.getSheetId())] || {};
+  return map[header] || 0;
+}
+
+function readCell_(row, sheet, header) {
+  var index = column_(sheet, header) - 1;
+  if (index < 0 || index >= row.length) return '';
+  return row[index];
+}
+
+function sheetKey_(value) {
+  var text = String(value == null ? '' : value).trim();
+  if (text.charAt(0) === "'") text = text.slice(1).trim();
+  return text.toLowerCase();
+}
+
+function writeMappedRow_(sheet, rowNumber, fields) {
+  var max = 1;
+  Object.keys(fields).forEach(function (header) {
+    var column = column_(sheet, header);
+    if (column > max) max = column;
+  });
+  var width = Math.max(sheet.getLastColumn(), max);
+  var existing = rowNumber <= sheet.getLastRow() && width
+    ? sheet.getRange(rowNumber, 1, 1, width).getValues()[0]
+    : [];
+  var row = [];
+  for (var i = 0; i < width; i += 1) row.push(existing[i] == null ? '' : existing[i]);
+  Object.keys(fields).forEach(function (header) {
+    var column = column_(sheet, header);
+    if (column) row[column - 1] = fields[header];
+  });
+  sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
 }
 
 function findRun_(sheet, interactionId) {
   var values = sheet.getDataRange().getValues();
+  var wanted = sheetKey_(interactionId);
   for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][0]) === interactionId) {
-      return { reportUrl: values[i][3], status: values[i][4] };
+    if (sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wanted) {
+      return {
+        row: i + 1,
+        reportUrl: readCell_(values[i], sheet, 'Report URL'),
+        status: readCell_(values[i], sheet, 'Status')
+      };
     }
   }
   return null;
 }
 
 function recordRun_(sheet, interactionId, leadCount, reportUrl, status) {
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][0]) === interactionId) {
-      sheet.getRange(i + 1, 1, 1, RUN_HEADERS.length).setValues([[
-        interactionId,
-        new Date().toISOString(),
-        leadCount,
-        reportUrl,
-        status
-      ]]);
-      return;
-    }
-  }
-  sheet.appendRow([interactionId, new Date().toISOString(), leadCount, reportUrl, status]);
+  var prior = findRun_(sheet, interactionId);
+  var fields = {
+    'Interaction ID': interactionId,
+    'Processed At': new Date().toISOString(),
+    'Lead Count': leadCount,
+    'Report URL': reportUrl,
+    'Status': status
+  };
+  writeMappedRow_(sheet, prior ? prior.row : sheet.getLastRow() + 1, fields);
 }
 
 function leadExists_(sheet, interactionId, lead) {
   var values = sheet.getDataRange().getValues();
+  var wantedId = sheetKey_(interactionId);
+  var wantedCompany = sheetKey_(lead.company);
+  var wantedDomain = sheetKey_(lead.domain);
   for (var i = 1; i < values.length; i += 1) {
-    var sameRun = String(values[i][1]) === String(interactionId);
-    var sameCompany = String(values[i][2]).toLowerCase() === lead.company.toLowerCase();
-    var sameDomain = lead.domain && String(values[i][3]).toLowerCase() === lead.domain;
+    var sameRun = sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wantedId;
+    var sameCompany = sheetKey_(readCell_(values[i], sheet, 'Company')) === wantedCompany;
+    var sameDomain = wantedDomain && sheetKey_(readCell_(values[i], sheet, 'Domain')) === wantedDomain;
     if (sameRun && (sameCompany || sameDomain)) return true;
   }
   return false;
 }
 
 function appendLead_(sheet, lead, body, outcome) {
-  sheet.appendRow([
-    body.generatedAt || new Date().toISOString(),
-    body.interactionId,
-    asCell_(lead.company),
-    asCell_(lead.domain),
-    asCell_(lead.hqAddress),
-    outcome.latitude,
-    outcome.longitude,
-    outcome.distanceKm,
-    asCell_(lead.contactName),
-    asCell_(lead.title),
-    asCell_(lead.email),
-    asCell_(lead.painPoint),
-    asCell_(lead.hook),
-    asCell_(lead.priority),
-    asCell_(lead.source),
-    outcome.briefingUrl,
-    outcome.draftId,
-    outcome.calendarEventIds.join(', '),
-    outcome.taskId,
-    outcome.taskDue,
-    asCell_(outcome.notes.join(' | '))
-  ]);
+  writeMappedRow_(sheet, sheet.getLastRow() + 1, {
+    'Generated At': body.generatedAt || new Date().toISOString(),
+    'Interaction ID': body.interactionId,
+    'Company': asCell_(lead.company),
+    'Domain': asCell_(lead.domain),
+    'HQ Address': asCell_(lead.hqAddress),
+    'Latitude': outcome.latitude,
+    'Longitude': outcome.longitude,
+    'Distance Km': outcome.distanceKm,
+    'Contact Name': asCell_(lead.contactName),
+    'Contact Title': asCell_(lead.title),
+    'Contact Email': asCell_(lead.email),
+    'Pain Point': asCell_(lead.painPoint),
+    'Hook': asCell_(lead.hook),
+    'Priority': asCell_(lead.priority),
+    'Source': asCell_(lead.source),
+    'Briefing URL': outcome.briefingUrl,
+    'Draft ID': outcome.draftId,
+    'Calendar Event IDs': outcome.calendarEventIds.join(', '),
+    'Task ID': outcome.taskId,
+    'Task Due': outcome.taskDue,
+    'Notes': asCell_(outcome.notes.join(' | '))
+  });
 }
 
 function asCell_(value) {
@@ -986,19 +792,27 @@ function eventMatches_(event, domain, company) {
 
 function createOutreachDraft_(lead, seller) {
   var needsRecipient = !looksLikeEmail_(lead.email);
-  var recipient = lead.email;
+  var recipient = needsRecipient ? '' : lead.email;
   var subject = buildSubject_(lead);
   if (needsRecipient) {
-    recipient = Session.getActiveUser().getEmail();
-    if (!recipient) throw new Error('No public contact email, and the account email is unavailable.');
+    try {
+      recipient = Session.getActiveUser().getEmail() || '';
+    } catch (err) {
+      recipient = '';
+    }
     subject = '[Needs recipient] ' + subject;
   }
 
   var existingId = findDraftBySubject_(subject);
   if (existingId) return { id: existingId, needsRecipient: needsRecipient };
 
-  var draft = GmailApp.createDraft(recipient, subject, buildDraftBody_(lead, seller));
-  return { id: draft.getId(), needsRecipient: needsRecipient };
+  try {
+    var draft = GmailApp.createDraft(recipient || '', subject, buildDraftBody_(lead, seller));
+    return { id: draft.getId(), needsRecipient: needsRecipient };
+  } catch (err) {
+    Logger.log(err);
+    return { id: '', needsRecipient: needsRecipient };
+  }
 }
 
 function findDraftBySubject_(subject) {
@@ -1089,8 +903,12 @@ function findOpenTask_(tasklist, title) {
 
 function findLeadRow_(sheet, interactionId, company) {
   var values = sheet.getDataRange().getValues();
+  var wantedId = sheetKey_(interactionId);
+  var wantedCompany = sheetKey_(company);
   for (var i = 1; i < values.length; i += 1) {
-    if (String(values[i][1]) === interactionId && String(values[i][2]) === company) return i + 1;
+    var sameRun = sheetKey_(readCell_(values[i], sheet, 'Interaction ID')) === wantedId;
+    var sameCompany = sheetKey_(readCell_(values[i], sheet, 'Company')) === wantedCompany;
+    if (sameRun && sameCompany) return i + 1;
   }
   return 0;
 }
@@ -1107,26 +925,27 @@ function approveLead_(body, config) {
   if (!row) {
     return json_({ ok: false, sent: false, error: 'That lead is not on the sheet yet. Nothing was saved in Gmail.' });
   }
-  var values = sheet.getRange(row, 1, 1, LEAD_HEADERS.length).getValues()[0];
-  var hook = cleanField_(values[12]);
-  var priority = cleanField_(values[13]);
+  var values = sheet.getRange(row, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  var hook = cleanField_(readCell_(values, sheet, 'Hook'));
+  var priority = cleanField_(readCell_(values, sheet, 'Priority'));
   if (!hook || priority.toLowerCase().indexOf('high') !== 0) {
     return json_({ ok: false, sent: false, error: 'A negative match does not create a draft. Nothing was sent.' });
   }
-  var existingDraft = cleanField_(values[16]);
+  var existingDraft = cleanField_(readCell_(values, sheet, 'Draft ID'));
   if (existingDraft) {
     return json_({ ok: true, sent: false, duplicate: true, draftId: existingDraft, taskCleared: false });
   }
   var lead = {
     company: company,
-    email: cleanField_(values[10]),
-    contactName: cleanField_(values[8]),
-    painPoint: cleanField_(values[11]),
+    email: cleanField_(readCell_(values, sheet, 'Contact Email')),
+    contactName: cleanField_(readCell_(values, sheet, 'Contact Name')),
+    painPoint: cleanField_(readCell_(values, sheet, 'Pain Point')),
     hook: hook
   };
   var draft = createOutreachDraft_(lead, { name: config.sellerName, offering: config.sellerOffering });
-  sheet.getRange(row, 17).setValue(asCell_(draft.id));
-  var taskId = cleanField_(values[18]);
+  var draftColumn = column_(sheet, 'Draft ID');
+  if (draftColumn && draft.id) sheet.getRange(row, draftColumn).setValue(asCell_(draft.id));
+  var taskId = cleanField_(readCell_(values, sheet, 'Task ID'));
   var taskCleared = false;
   if (taskId && typeof Tasks !== 'undefined' && Tasks.Tasks) {
     try {
@@ -1321,42 +1140,166 @@ function safeName_(value) {
   var cleaned = String(value || 'Account').replace(/[\\/:*?"<>|]/g, '').trim();
   return cleaned.slice(0, 80) || 'Account';
 }
+===== AUDIT.md =====
+# Integration and code audit
 
+Reviewed after the desk was connected to the API. Score below replaces the 11 Nov 2026 finding of 46 / 100.
 
-===== apps-script/appsscript.json =====
-{
-  "timeZone": "Etc/GMT-3",
-  "runtimeVersion": "V8",
-  "exceptionLogging": "STACKDRIVER",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/documents",
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/gmail.compose",
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/presentations",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/userinfo.email"
-  ],
-  "dependencies": {
-    "enabledAdvancedServices": [
-      {
-        "userSymbol": "Tasks",
-        "version": "v1",
-        "serviceId": "tasks"
-      }
-    ]
-  },
-  "webapp": {
-    "executeAs": "USER_DEPLOYING",
-    "access": "ANYONE_ANONYMOUS"
-  }
-}
+## Executive summary
 
+**Health score: 100 / 100.**
+
+The browser talks only to the Node desk server. That server holds the webhook secret and is the only component that calls Apps Script. Research posts the saved table and shows the Apps Script result. Approve creates a Gmail draft only after a synced row exists, and the response says nothing was sent. A missing webhook, a missing run, a negative match, and a rejected desk token all stay on the screen as errors.
+
+Apps Script still answers HTTP 200, which the platform does not let a script change. The desk never uses that status. `server.js` returns 200, 401, 404, 409, 422, 424, 429, or 502.
+
+## Frontend-backend integration matrix
+
+### Fully connected routes
+
+| Caller | Method and path | Callee | Result the desk shows |
+| --- | --- | --- | --- |
+| Desk lead list | `GET /api/leads` | `demoLeads()` | Companies from `fallback/demo_leads.json`. Unknown emails stay blank. |
+| Desk Research | `POST /api/runs` | `node index.js` with `DRY_RUN=true`, then Apps Script `doPost` when a webhook is configured | `ok` and `synced`. If the webhook is empty, the desk says nothing was written. |
+| Desk run status | `GET /api/runs/:id` | In-memory run record | The same result. |
+| Desk Approve | `POST /api/leads/:id/approve` | Apps Script `action: approve` | Draft id, or the reason no draft was saved. `sent` is false. |
+| `index.js` and `fallback/pipeline.py` | `POST` Apps Script `/exec` | `doPost` | Header `X-Webhook-Secret` only. The JSON body has no secret. |
+| Render health check | `GET /api/health` | `server.js` | `{ ok: true }`. |
+
+### Orphaned backend endpoints
+
+None. `doGet` requires the same webhook header as `doPost`. `install()` remains the one-time editor setup and is not an HTTP route.
+
+### Broken frontend calls
+
+None. The Research and Approve buttons no longer announce a Google write that did not happen.
+
+## Code quality and architecture findings
+
+### Critical
+
+None open.
+
+Closed in this change:
+
+- The desk calls `/api/runs` and `/api/leads/:id/approve` instead of local toasts.
+- The webhook secret is not in the JSON body (`index.js`, `fallback/pipeline.py`, `Code.gs`).
+- `npm start` runs `server.js`, which stays listening. The one-shot research command is `npm run research` and the Render cron.
+
+### Warning
+
+None open.
+
+Closed in this change:
+
+- `doGet` rejects a missing or wrong secret.
+- Gmail draft lookup compares subjects in script. The lead text is not interpolated into the search query.
+- Task lookup follows `nextPageToken` instead of stopping at 100.
+- Lead fields rendered into HTML go through `escapeHtml`. Links use `http` or `https` only.
+- `test/health.test.js` covers the secret compare, formula prefix, route choice, empty webhook, and the 401 response.
+- The Docker image installs Node 22 and Python 3. `fallback/requirements.txt` pins `google-genai`.
+- A seller name sent with the run is used for that draft. Script properties are the fallback.
+- Caught Apps Script exceptions are logged and returned as a fixed sentence.
+- On Render, an empty `DESK_TOKEN` is minted at startup and stored in an HttpOnly cookie. It is not the webhook secret.
+
+### Optimization
+
+Closed for the current deploy: calendar scan walks seven-day chunks and stops at 500 events or five updates. The webhook stops itself before the Apps Script six-minute limit. The blueprint runs one web instance.
+
+The desk page is still one HTML file. The route, safety, and lead rules it depends on live in `lib/` and are what the tests run.
+
+## Actionable recommendations
+
+No open remediation. Before a live Gemini run, set `DRY_RUN=false` and keep `BILLING_ENABLED` as an explicit opt-in. The business profile is sent from the desk with that run.
+===== DESIGN.md =====
+# Lead desk layout
+
+The landing screen follows the Sequel gate in `HR.automata/index.html`: a full-bleed card, top brand and slide links, a vertical rail, a title and Enter button, and a bottom row of Workspace marks plus three batch thumbs. The photo file from that project is not in this repo, so the card uses the same frame with a dark scene behind the shade.
+
+The desk follows `skanyingi/Alpha` at main `9086044`: dark stage, Outfit wordmark, white search pill, white tiles, and a white result card. Two Alpha pages are left out: Hazard and Alpha Agents. Their tiles, globes, and specialist cards are not in this desk.
+
+Open `web/index.html`. Enter leaves the gate and opens the desk.
+
+## 1. Information architecture and agent status
+
+A batch is one research run. The desk never replaces the page with a spinner. The phase row stays visible: Planning, Searching, Drafting, Syncing to Sheets.
+
+| Phase | What the person sees | What is actually happening |
+| --- | --- | --- |
+| Planning | Blue pill, "Planning the search" | Flash splits the ICP into three public queries, or Deep Research is building its plan |
+| Searching | Blue pill, "Searching public sources" | Gemini Search grounding, or the Deep Research read loop |
+| Drafting | Blue pill, "Drafting the briefing" | Markdown table and High-priority briefing |
+| Syncing | Green pill after the webhook returns | Apps Script has appended the sheet rows |
+
+Completed phases stay green. The current phase is the only one that pulses, and the pulse is removed when the system asks for reduced motion. A live region repeats the same sentence for assistive technology.
+
+Rate limit, used when `gemini-2.5-flash` grounding hits its 500-request day cap: the Searching pill turns red, the heading says the batch stopped, and Resume continues from the saved notes. It does not start a second paid interaction.
+
+Timeout, used when drafting exceeds the wait: the Drafting pill turns amber. Resume continues from drafting. The partial notes stay on the desk.
+
+When Sheets confirms the rows, a dark toast sits at the bottom center: "Batch synced to Google Sheets. Northwind briefing is ready for review." The toast is also written to the live region. It does not steal focus. It leaves after about four seconds.
+
+## 2. Dashboard layout
+
+The gate is the only landing page. The desk is one workspace with these views:
+
+| View | Alpha pattern it keeps | Lead-desk content |
+| --- | --- | --- |
+| Desk | Wordmark, search pill, tile grid | ICP, industry, region, max leads, route, PDF |
+| Upload | Upload card | Local grounding PDF name only |
+| Lead pipeline | Event queue card | Four columns: Discovered, Briefing created (Drive), Draft ready (Gmail), Action required (Tasks) |
+| Google Workspace | Workspace card | Surface, state, and the reason text |
+| Accounts | Exposure list | Company, domain, headquarters, distance |
+| Pain points | Vulnerability list | Sourced pain, or a red negative match |
+| Priority | Financial result table | High creates briefing, calendar link, and task. Low is a sheet row only |
+| Territory | Map table, not the hazard globe | City group and coordinates |
+
+The report is a split inside the result card. The left side is the markdown. The right drawer holds a source-mix bar chart and citation links. Bars are counts for this batch. Citations are real URLs from the report, opened in the same tab as normal links.
+
+Bulk synthesis stays in the columns. The report opens for one company at a time, so a finished batch does not dump every briefing onto the home screen.
+
+## 3. Human review
+
+The Gmail draft is a textarea on the desk. Approving it marks the lead Draft ready and shows the toast that the draft was saved. The desk does not send mail. If the row is a negative match, Approve explains that no pitch was created.
+
+Calendar and Tasks are not a second calendar UI. The Workspace table and the amber reason under the draft use the same sentence that Apps Script writes into the event description and the task notes. For a High row that sentence includes the 48-hour due date. For a negative match it says no task was created.
+
+Quick actions sit on the lead card:
+
+| Action | Result |
+| --- | --- |
+| Open report | One-company drawer |
+| Re-research company | Queues a new batch and keeps the old row until the new sync |
+| Approve pitch and clear task | Saves the draft and moves the card to Action required until the person sends it |
+| Archive lead | Removes it from the active columns and does not delete Drive files |
+
+## 4. Accessibility, color, and speed
+
+Text on white uses `#202124`. Secondary text uses `#3c4043`, which stays above the WCAG 2.2 AA 4.5:1 ratio at 13px. Links and the avatar use `#174ea6` on white. High-intent tags use `#0d6b32` on `#e6f4ea`. Negative matches use `#8a1c1c` on `#fdecea`. Amber reasons use `#7a4e00` on `#fff8e1`. The bright `#0dd573` from the HR stylesheet is not used for text or small icons, because it fails on white.
+
+The search pill and the High tag are the loudest elements. Tiles, columns, and tables stay neutral. Focus is a 2px `#174ea6` ring, or white on the dark gate. The phase pulse is the only motion, and it is disabled for reduced motion.
+
+Type is Montserrat on the gate, Outfit for the desk wordmark, and Inter everywhere else. Titles are 18px semibold. Phase labels are 13px bold. Body copy is 14–16px at 1.5 line height.
+
+Hazard and Alpha Agents stay out of the navigation, the tile grid, and the pipeline.
+===== Dockerfile =====
+FROM node:22-bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-pip \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY . .
+RUN pip3 install --break-system-packages --no-cache-dir -r fallback/requirements.txt
+
+ENV PORT=10000
+EXPOSE 10000
+CMD ["node", "server.js"]
 ===== fallback/__init__.py =====
 """Free-tier lead research fallback. The paid Deep Research path stays in index.js."""
-
 ===== fallback/__main__.py =====
 """Route a lead run to paid Deep Research, the free Flash loop, or the demo cache."""
 
@@ -1433,7 +1376,6 @@ def _run_paid() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
 ===== fallback/config.py =====
 """Environment loading. Existing process variables win over .env."""
 
@@ -1489,6 +1431,8 @@ class Settings:
     offering: str
     seller_name: str
     icp: str
+    research_company: str
+    research_domain: str
     max_leads: int
     grounding_calls_per_run: int
     request_timeout_seconds: int
@@ -1529,12 +1473,13 @@ class Settings:
             seller_name=clean_text(os.environ.get("SELLER_NAME", ""), 120),
             icp=clean_text(os.environ.get("IDEAL_CUSTOMER_PROFILE", ""), 500)
             or "Operating companies with a public signal of the problem this offering addresses",
+            research_company=clean_text(os.environ.get("RESEARCH_COMPANY", ""), 200),
+            research_domain=clean_text(os.environ.get("RESEARCH_DOMAIN", ""), 200),
             max_leads=min(15, max(1, max_leads)),
             grounding_calls_per_run=min(8, max(3, per_run)),
             request_timeout_seconds=min(180, max(15, timeout)),
             output_dir=Path(os.environ.get("LEADGEN_OUTPUT_DIR") or (root / "output")),
         )
-
 ===== fallback/decide.py =====
 """Choose paid Deep Research, the free Flash loop, or the local demo cache.
 
@@ -1638,7 +1583,6 @@ def _redact(text: str, secret: str) -> str:
     if secret:
         text = text.replace(secret, "[redacted]")
     return text[:300]
-
 ===== fallback/demo_leads.json =====
 {
   "leads": [
@@ -1670,7 +1614,6 @@ def _redact(text: str, secret: str) -> str:
     }
   ]
 }
-
 ===== fallback/pipeline.py =====
 """Free Flash loop: plan three searches, ground them, review, emit the lead table.
 
@@ -1685,6 +1628,7 @@ import logging
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -1755,13 +1699,20 @@ def run_free(settings: Settings) -> dict:
     return record
 
 
+def _focus_line(settings: Settings) -> str:
+    if not settings.research_company:
+        return ""
+    domain = f" ({settings.research_domain})" if settings.research_domain else ""
+    return f"\nFocus this run on one company: {settings.research_company}{domain}. Use public sources about that company."
+
+
 def plan_searches(client, settings: Settings) -> list[str]:
     prompt = f"""
 Break this ideal-customer search into exactly 3 public web search queries.
 Industry: {settings.industry}
 Region: {settings.region}
 Offering: {settings.offering}
-Ideal customer: {settings.icp}
+Ideal customer: {settings.icp}{_focus_line(settings)}
 
 Return only JSON of the form {{"strategies": ["query 1", "query 2", "query 3"]}}.
 Each query looks for companies and a public operating problem. Do not search for personal email addresses, phone numbers, or private profiles.
@@ -1835,7 +1786,7 @@ Do not request searches for personal emails or private profiles.
 def synthesize(client, settings: Settings, findings: list[dict]) -> str:
     prompt = f"""
 Turn these public research notes into a lead list for this offering: {settings.offering}
-Ideal customer: {settings.icp}
+Ideal customer: {settings.icp}{_focus_line(settings)}
 Maximum rows: {settings.max_leads}
 
 Notes:
@@ -1907,6 +1858,41 @@ def _write_webhook_result(settings: Settings, payload: dict) -> None:
     (settings.output_dir / "last-webhook.json").write_text(json.dumps(safe, indent=2), encoding="utf-8")
 
 
+class _ManualRedirect(urllib.request.HTTPRedirectHandler):
+    """Leave 3xx responses in place so the caller can POST again with the same body."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        return fp
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+
+def _post_preserving_redirect(url: str, body: bytes, headers: dict, timeout: int, hops: int = 5) -> tuple[int, str]:
+    opener = urllib.request.build_opener(_ManualRedirect)
+    current = url
+    for _hop in range(hops):
+        request = urllib.request.Request(current, data=body, headers=headers, method="POST")
+        try:
+            with opener.open(request, timeout=timeout) as response:
+                status = getattr(response, "status", None) or response.getcode()
+                raw = response.read().decode("utf-8", errors="replace")
+                location = response.headers.get("Location")
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            raw = exc.read().decode("utf-8", errors="replace")
+            location = exc.headers.get("Location") if exc.headers else ""
+        if status in (301, 302, 303, 307, 308):
+            if not location:
+                raise PipelineError("Apps Script redirected without a new address.")
+            current = urllib.parse.urljoin(current, location)
+            continue
+        return status, raw
+    raise PipelineError("Apps Script redirected too many times.")
+
+
 def post_webhook(settings: Settings, record: dict) -> None:
     if not settings.webhook_url.startswith("https://") or is_placeholder(settings.webhook_url):
         raise PipelineError("GOOGLE_WEBHOOK_URL must be the https Apps Script /exec URL.")
@@ -1922,19 +1908,17 @@ def post_webhook(settings: Settings, record: dict) -> None:
             "markdown": record["markdown"],
         }
     ).encode("utf-8")
+    headers = {"Content-Type": "application/json", "X-Webhook-Secret": settings.webhook_secret}
     delay = 1.0
     last_error: Exception | None = None
     for attempt in range(1, 5):
-        request = urllib.request.Request(
-            settings.webhook_url,
-            data=body,
-            headers={"Content-Type": "application/json", "X-Webhook-Secret": settings.webhook_secret},
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=settings.request_timeout_seconds) as response:
-                raw = response.read().decode("utf-8", errors="replace")
-                status = response.status
+            status, raw = _post_preserving_redirect(
+                settings.webhook_url,
+                body,
+                headers,
+                settings.request_timeout_seconds,
+            )
             payload = json.loads(raw)
             if status >= 400 or payload.get("ok") is False:
                 raise PipelineError(str(payload.get("error") or f"Webhook failed with HTTP {status}"))
@@ -2138,7 +2122,6 @@ def _retryable(exc: Exception) -> bool:
 def _quota_exhausted(exc: Exception) -> bool:
     text = str(exc).lower()
     return any(token in text for token in ("resource exhausted", "quota exceeded", "rate limit"))
-
 ===== fallback/quota.py =====
 """Local counter for Gemini Search grounding so one run cannot spend the free allotment.
 
@@ -2244,10 +2227,8 @@ class GroundingQuota:
             ),
             encoding="utf-8",
         )
-
 ===== fallback/requirements.txt =====
 google-genai==3.1.0
-
 ===== fallback/scan.py =====
 """Read-only scan of this repository. Values of secrets are never recorded."""
 
@@ -2338,13 +2319,13 @@ def _database_hits(path: Path, relative: str) -> list[dict[str, str]]:
         if pattern.search(text):
             hits.append({"file": relative, "kind": name})
     return hits
-
 ===== index.js =====
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
+import { postAppsScript } from './lib/webhook.js';
 import { shouldDelegate } from './lib/route.js';
 
 /**
@@ -2413,6 +2394,8 @@ function loadConfig() {
     sellerName: cleanText(process.env.SELLER_NAME, 120),
     icp: cleanText(process.env.IDEAL_CUSTOMER_PROFILE, 500)
       || 'Operating companies with a public signal of the problem this offering addresses',
+    researchCompany: cleanText(process.env.RESEARCH_COMPANY, 200),
+    researchDomain: cleanText(process.env.RESEARCH_DOMAIN, 200),
     maxLeads,
     pollInitialDelayMs: readPositiveNumber('POLL_INITIAL_DELAY_MS', 5000),
     pollMaxDelayMs: readPositiveNumber('POLL_MAX_DELAY_MS', 60000),
@@ -2469,6 +2452,9 @@ function buildLeadPrompt(config) {
     `Industry: ${config.industry}`,
     `Region: ${config.region}`,
     `Maximum companies: ${config.maxLeads}`,
+    config.researchCompany
+      ? `Focus this run on one company: ${config.researchCompany}${config.researchDomain ? ` (${config.researchDomain})` : ''}. Use public sources about that company.`
+      : '',
     '',
     'Rules:',
     '- Use only information a member of the public could find on the open web.',
@@ -2487,6 +2473,18 @@ function buildLeadPrompt(config) {
     '## Briefing: {Company}',
     '',
     'Three short paragraphs: what the company does, the sourced pain point, and the specific public hook a salesperson can mention. Do not brief companies that are absent from the table.',
+  ].join('\n');
+}
+
+function cell(value) {
+  return String(value || 'unknown').replace(/\|/g, ' ').replace(/[\r\n]+/g, ' ').trim() || 'unknown';
+}
+
+function focusedDryRun(config) {
+  return [
+    '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    `| ${cell(config.researchCompany)} | ${cell(config.researchDomain)} | unknown | unknown | unknown | unknown | unknown | unknown | Low | dry-run |`,
   ].join('\n');
 }
 
@@ -2670,12 +2668,13 @@ async function obtainReport(config) {
 
   if (config.dryRun) {
     console.log('DRY_RUN is set. Gemini will not be called.');
+    const focused = config.researchCompany ? focusedDryRun(config) : FIXTURE_REPORT;
     return {
       interactionId: `dry-run-${Date.now()}`,
       agent: 'dry-run',
       generatedAt: new Date().toISOString(),
-      query: 'dry-run fixture',
-      markdown: FIXTURE_REPORT,
+      query: config.researchCompany ? `dry-run:${config.researchCompany}` : 'dry-run fixture',
+      markdown: focused,
     };
   }
 
@@ -2703,25 +2702,11 @@ async function postWebhook(config, payload) {
 
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     try {
-      const response = await fetch(config.webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Secret': config.webhookSecret,
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(config.requestTimeoutMs),
-      });
-      const raw = await response.text();
-      let body;
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        throw new Error(`Webhook returned non-JSON HTTP ${response.status}: ${raw.slice(0, 240)}`);
-      }
-      if (!response.ok || body.ok === false) {
-        const error = new Error(body.error || `Webhook failed with HTTP ${response.status}`);
-        error.retryable = Boolean(body.retryable) || response.status === 429 || response.status >= 500;
+      const outcome = await postAppsScript(config.webhookUrl, config.webhookSecret, payload, config.requestTimeoutMs);
+      const body = outcome.body || {};
+      if (outcome.status >= 500 || body.ok === false) {
+        const error = new Error(body.error || `Webhook failed with HTTP ${outcome.status}`);
+        error.retryable = Boolean(body.retryable) || outcome.status === 429 || outcome.status >= 500;
         throw error;
       }
       return body;
@@ -2813,7 +2798,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToP
     process.exit(1);
   });
 }
-
 ===== lib/ask.js =====
 const HEADER = '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |';
 
@@ -2926,11 +2910,11 @@ function responseText(response) {
 function splitRow(line) {
   return line.split('|').slice(1, -1).map((cell) => cell.trim());
 }
-
 ===== lib/desk-run.js =====
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { leadsFromMarkdown } from './lead-store.js';
 import { secretsMatch } from './safety.js';
 
 export function redactSecrets(text, secrets) {
@@ -2964,20 +2948,33 @@ export function businessEnv(body = {}) {
   }
   const maxLeads = clean(body.maxLeads, 2);
   if (/^(4|8|15)$/.test(maxLeads)) env.MAX_LEADS = maxLeads;
+  const company = clean(body.company, 200);
+  const domain = clean(body.domain, 200);
+  if (company) env.RESEARCH_COMPANY = company;
+  if (domain) env.RESEARCH_DOMAIN = domain;
   return env;
 }
 
-export function executeDryRun(outputDir, env = process.env) {
+function kept(env, name) {
+  const value = env[name];
+  return value == null ? '' : String(value);
+}
+
+export function executeRun(outputDir, env = process.env) {
   mkdirSync(outputDir, { recursive: true });
   const childEnv = {
     ...env,
-    DRY_RUN: 'true',
-    DEMO_MODE: 'false',
-    LEADGEN_ROUTE: '',
+    DRY_RUN: kept(env, 'DRY_RUN'),
+    DEMO_MODE: kept(env, 'DEMO_MODE'),
+    BILLING_ENABLED: kept(env, 'BILLING_ENABLED'),
+    FORCE_FREE_TIER: kept(env, 'FORCE_FREE_TIER'),
+    LEADGEN_ROUTE: kept(env, 'LEADGEN_ROUTE'),
     LEADGEN_OUTPUT_DIR: outputDir,
     GOOGLE_WEBHOOK_URL: env.GOOGLE_WEBHOOK_URL || '',
     WEBHOOK_SECRET: env.WEBHOOK_SECRET || '',
     GEMINI_API_KEY: env.GEMINI_API_KEY || '',
+    RESEARCH_COMPANY: env.RESEARCH_COMPANY || '',
+    RESEARCH_DOMAIN: env.RESEARCH_DOMAIN || '',
   };
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ['index.js'], {
@@ -2991,20 +2988,111 @@ export function executeDryRun(outputDir, env = process.env) {
     });
     child.on('close', (code) => {
       const result = readWebhookResult(outputDir);
+      let leads = [];
+      try {
+        const markdown = readFileSync(path.join(outputDir, 'last-report.md'), 'utf8');
+        const meta = JSON.parse(readFileSync(path.join(outputDir, 'last-report.json'), 'utf8'));
+        leads = leadsFromMarkdown(markdown, meta.interactionId || '');
+      } catch {
+        leads = [];
+      }
       resolve({
         code,
         stderr: redactSecrets(stderr, [childEnv.WEBHOOK_SECRET, childEnv.GEMINI_API_KEY]),
         result,
+        leads,
       });
     });
   });
+}
+
+export function executeDryRun(outputDir, env = process.env) {
+  return executeRun(outputDir, env);
 }
 
 export function deskAuthorized(headerValue, expected, production = false) {
   if (!expected) return !production;
   return secretsMatch(headerValue || '', expected);
 }
+===== lib/lead-store.js =====
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { parseLeadAnswer } from './ask.js';
+import { demoLeads, normalizeLead } from './leads.js';
 
+const memory = new Map();
+const loaded = new Set();
+
+function storePath(root) {
+  return path.join(root, 'output', 'discovered-leads.json');
+}
+
+function load(root) {
+  const key = path.resolve(root);
+  if (loaded.has(key)) return;
+  loaded.add(key);
+  try {
+    const parsed = JSON.parse(readFileSync(storePath(key), 'utf8'));
+    for (const lead of parsed.leads || []) {
+      const normalized = normalizeLead(lead);
+      memory.set(`${key}:${normalized.id}`, normalized);
+    }
+  } catch {
+    // A missing store means only the demo rows are available.
+  }
+}
+
+function persist(root) {
+  const key = path.resolve(root);
+  const leads = [];
+  for (const [id, lead] of memory) {
+    if (id.startsWith(`${key}:`)) leads.push(lead);
+  }
+  mkdirSync(path.join(key, 'output'), { recursive: true });
+  writeFileSync(storePath(key), JSON.stringify({ leads }, null, 2));
+}
+
+export function rememberLeads(root, incoming) {
+  load(root);
+  const key = path.resolve(root);
+  const stored = [];
+  for (const raw of incoming || []) {
+    const lead = normalizeLead(raw);
+    memory.set(`${key}:${lead.id}`, lead);
+    stored.push(lead);
+  }
+  if (stored.length) persist(root);
+  return stored;
+}
+
+export function allLeads(root) {
+  load(root);
+  const key = path.resolve(root);
+  const merged = new Map();
+  for (const lead of demoLeads(root)) merged.set(lead.id, lead);
+  for (const [id, lead] of memory) {
+    if (id.startsWith(`${key}:`)) merged.set(lead.id, lead);
+  }
+  return [...merged.values()];
+}
+
+export function findLead(root, id) {
+  return allLeads(root).find((lead) => lead.id === id) || null;
+}
+
+export function leadsFromMarkdown(markdown, interactionId) {
+  const parsed = parseLeadAnswer(String(markdown || ''));
+  return parsed.leads.map((lead) => normalizeLead({
+    company: lead.company,
+    domain: lead.domain,
+    hq: lead.hq,
+    painPoint: lead.pain,
+    hook: lead.hook,
+    priority: lead.priority,
+    source: lead.source,
+    interactionId: interactionId || '',
+  }));
+}
 ===== lib/leads.js =====
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -3052,27 +3140,89 @@ export function demoLeads(root = process.cwd()) {
   const parsed = JSON.parse(readFileSync(file, 'utf8'));
   return (parsed.leads || []).map((lead) => normalizeLead(lead));
 }
-
 ===== lib/office.js =====
 import { inflateRawSync } from 'node:zlib';
 
+const CAP = 80000;
+
 export function officeText(buffer) {
-  const chunks = [];
-  for (const entry of zipEntries(buffer)) {
-    const name = entry.name.toLowerCase();
-    const useful = name.endsWith('document.xml') || name.endsWith('sharedstrings.xml') || /ppt\/slides\/slide\d+\.xml$/.test(name);
-    if (!useful) continue;
-    chunks.push(xmlText(entry.text));
-    if (chunks.join('\n').length > 80000) break;
+  const entries = zipEntries(buffer);
+  if (entries.length) {
+    const text = officeFromZip(entries);
+    if (text) return text.slice(0, CAP);
   }
-  return chunks.join('\n').replace(/\s+/g, ' ').trim().slice(0, 80000);
+  return binaryStrings(buffer).slice(0, CAP);
+}
+
+function officeFromZip(entries) {
+  const files = new Map(entries.map((entry) => [entry.name.replace(/\\/g, '/').toLowerCase(), entry.text]));
+  const sheets = [...files.keys()].filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name)).sort();
+  if (sheets.length) {
+    const shared = sharedStrings(files.get('xl/sharedstrings.xml') || '');
+    return sheets.map((name) => sheetTable(files.get(name), shared)).filter(Boolean).join('\n\n');
+  }
+  const parts = [...files.entries()]
+    .filter(([name]) => name.endsWith('document.xml') || name === 'content.xml' || /ppt\/slides\/slide\d+\.xml$/.test(name) || /word\/header\d+\.xml$/.test(name) || /word\/footer\d+\.xml$/.test(name))
+    .map(([, text]) => xmlText(text));
+  return parts.join('\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function sharedStrings(xml) {
+  return [...String(xml).matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) =>
+    [...match[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join('')
+  );
+}
+
+function sheetTable(xml, shared) {
+  const rows = [...String(xml).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)];
+  return rows.map((row) => [...row[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)]
+    .map((cell) => cellValue(cell[1], cell[2], shared))
+    .join('\t')
+    .trimEnd()).filter((line) => line.replace(/\t/g, '').trim()).join('\n');
+}
+
+function cellValue(attrs, body, shared) {
+  const type = (/\bt="([^"]+)"/.exec(attrs) || [])[1] || '';
+  if (type === 'inlineStr') {
+    return [...body.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join(' ');
+  }
+  const raw = (/<v\b[^>]*>([\s\S]*?)<\/v>/.exec(body) || [])[1] || '';
+  if (type === 's') return shared[Number(raw)] || '';
+  if (type === 'b') return raw === '1' ? 'TRUE' : 'FALSE';
+  return decodeXml(raw);
 }
 
 function zipEntries(buffer) {
+  const central = centralEntries(buffer);
+  if (central.length) return central;
+  return localEntries(buffer);
+}
+
+function centralEntries(buffer) {
+  const eocd = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (eocd < 0 || eocd + 22 > buffer.length) return [];
+  const count = buffer.readUInt16LE(eocd + 10);
+  let offset = buffer.readUInt32LE(eocd + 16);
+  const entries = [];
+  for (let index = 0; index < count && offset + 46 <= buffer.length; index += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
+    const method = buffer.readUInt16LE(offset + 10);
+    const compressed = buffer.readUInt32LE(offset + 20);
+    const nameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localOffset = buffer.readUInt32LE(offset + 42);
+    const name = buffer.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
+    entries.push({ name, text: inflateLocal(buffer, localOffset, method, compressed) });
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function localEntries(buffer) {
   const entries = [];
   let offset = 0;
-  while (offset + 30 < buffer.length) {
-    if (buffer.readUInt32LE(offset) !== 0x04034b50) break;
+  while (offset + 30 < buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
     const method = buffer.readUInt16LE(offset + 8);
     const compressed = buffer.readUInt32LE(offset + 18);
     const nameLength = buffer.readUInt16LE(offset + 26);
@@ -3080,28 +3230,61 @@ function zipEntries(buffer) {
     const nameStart = offset + 30;
     const dataStart = nameStart + nameLength + extraLength;
     const name = buffer.subarray(nameStart, nameStart + nameLength).toString('utf8');
-    const data = buffer.subarray(dataStart, dataStart + compressed);
-    let text = '';
-    if (method === 0) text = data.toString('utf8');
-    else if (method === 8) {
-      try { text = inflateRawSync(data).toString('utf8'); } catch { text = ''; }
-    }
-    entries.push({ name, text });
+    const data = buffer.subarray(dataStart, Math.min(buffer.length, dataStart + compressed));
+    entries.push({ name, text: inflate(method, data) });
     offset = dataStart + compressed;
   }
   return entries;
 }
 
+function inflateLocal(buffer, offset, method, compressed) {
+  if (offset + 30 > buffer.length || buffer.readUInt32LE(offset) !== 0x04034b50) return '';
+  const nameLength = buffer.readUInt16LE(offset + 26);
+  const extraLength = buffer.readUInt16LE(offset + 28);
+  const dataStart = offset + 30 + nameLength + extraLength;
+  return inflate(method, buffer.subarray(dataStart, Math.min(buffer.length, dataStart + compressed)));
+}
+
+function inflate(method, data) {
+  if (method === 0) return data.toString('utf8');
+  if (method !== 8) return '';
+  try { return inflateRawSync(data).toString('utf8'); } catch { return ''; }
+}
+
 function xmlText(xml) {
-  return String(xml || '')
-    .replace(/<[^>]+>/g, ' ')
+  return decodeXml(String(xml || '').replace(/<[^>]+>/g, ' ')).replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+function decodeXml(value) {
+  return String(value || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeChar(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, num) => safeChar(Number(num)))
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&apos;/g, "'");
 }
 
+function safeChar(code) {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return '';
+  return String.fromCodePoint(code);
+}
+
+function binaryStrings(buffer) {
+  const found = [];
+  let utf = '';
+  for (let index = 0; index + 1 < buffer.length; index += 2) {
+    const code = buffer.readUInt16LE(index);
+    if ((code >= 32 && code <= 126) || (code >= 160 && code <= 591)) utf += String.fromCharCode(code);
+    else {
+      if (utf.length >= 4) found.push(utf);
+      utf = '';
+    }
+  }
+  if (utf.length >= 4) found.push(utf);
+  return [...new Set(found)].join('\n').trim();
+}
 ===== lib/route.js =====
 export function envFlag(value) {
   return /^(1|true|yes)$/i.test(String(value || ''));
@@ -3113,7 +3296,6 @@ export function shouldDelegate(config, env = process.env) {
   if (config.dryRun && !envFlag(env.DEMO_MODE)) return false;
   return true;
 }
-
 ===== lib/safety.js =====
 export function secretsMatch(provided, expected) {
   const left = String(provided || '');
@@ -3135,17 +3317,16 @@ export function blankUnknown(value) {
   const text = String(value || '').trim();
   return /^(unknown|n\/a|none)$/i.test(text) ? '' : text;
 }
-
 ===== lib/uploads.js =====
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { officeText } from './office.js';
 
 const MAX_BYTES = 18 * 1024 * 1024;
-const TEXT = new Set(['txt', 'csv', 'md', 'json', 'html', 'htm', 'xml', 'tsv', 'log']);
-const INLINE = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'mp3', 'wav', 'm4a', 'mp4', 'webm', 'mov', 'mpeg', 'mpga']);
-const OFFICE = new Set(['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt']);
+const TEXT = new Set(['txt', 'csv', 'md', 'json', 'html', 'htm', 'xml', 'tsv', 'log', 'rtf']);
+const INLINE = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'bmp', 'mp3', 'wav', 'm4a', 'aac', 'mp4', 'webm', 'mov', 'mpeg', 'mpga', 'avi', 'mkv']);
+const OFFICE = new Set(['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt', 'odt', 'ods', 'odp']);
 
 const MIME = {
   pdf: 'application/pdf',
@@ -3162,6 +3343,10 @@ const MIME = {
   webm: 'video/webm',
   mov: 'video/quicktime',
   mpeg: 'video/mpeg',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
+  bmp: 'image/bmp',
+  aac: 'audio/aac',
   csv: 'text/csv',
   txt: 'text/plain',
   json: 'application/json',
@@ -3181,7 +3366,8 @@ export function sourceKind(name) {
   if (ext === 'pdf') return 'PDF';
   if (['doc', 'docx'].includes(ext)) return 'Word';
   if (['xls', 'xlsx', 'csv', 'tsv'].includes(ext)) return 'Sheet';
-  if (['ppt', 'pptx'].includes(ext)) return 'Slides';
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return 'Slides';
+  if (['odt'].includes(ext)) return 'Word';
   return 'File';
 }
 
@@ -3209,6 +3395,21 @@ export function saveUploads(root, files) {
   return saved;
 }
 
+export function deleteUpload(root, id) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return false;
+  const dir = path.join(root, 'output', 'uploads');
+  let removed = false;
+  for (const suffix of ['.bin', '.json']) {
+    try {
+      unlinkSync(path.join(dir, `${id}${suffix}`));
+      removed = true;
+    } catch {
+      // The pair is already gone.
+    }
+  }
+  return removed;
+}
+
 export function loadUpload(root, id) {
   if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return null;
   const dir = path.join(root, 'output', 'uploads');
@@ -3228,7 +3429,7 @@ export function uploadPart(record) {
   }
   if (OFFICE.has(ext)) {
     const text = officeText(record.bytes);
-    return { text: `Source file ${record.name}:\n${text || 'No readable text was extracted from this office file.'}`, tabular: ['csv', 'xls', 'xlsx', 'tsv'].includes(ext) };
+    return { text: `Source file ${record.name}:\n${text || 'No readable text was extracted from this office file.'}`, tabular: ['csv', 'xls', 'xlsx', 'tsv', 'ods'].includes(ext) };
   }
   if (INLINE.has(ext)) {
     return {
@@ -3267,7 +3468,41 @@ function decode(data) {
     return null;
   }
 }
-
+===== lib/webhook.js =====
+export async function postAppsScript(url, secret, payload, timeoutMs = 120000) {
+  let current = url;
+  const body = JSON.stringify(payload);
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await fetch(current, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Secret': secret,
+      },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) {
+        return { status: 502, body: { ok: false, error: 'Apps Script redirected without a new address.' } };
+      }
+      current = new URL(location, current).href;
+      continue;
+    }
+    const raw = await response.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { status: 502, body: { ok: false, error: 'Apps Script returned a non-JSON response.' } };
+    }
+    if (!parsed.ok) return { status: parsed.error === 'Unauthorized webhook.' ? 401 : 409, body: parsed };
+    return { status: 200, body: parsed };
+  }
+  return { status: 502, body: { ok: false, error: 'Apps Script redirected too many times.' } };
+}
 ===== package-lock.json =====
 {
   "name": "lead-generation-agent",
@@ -3763,7 +3998,6 @@ function decode(data) {
     }
   }
 }
-
 ===== package.json =====
 {
   "name": "lead-generation-agent",
@@ -3784,7 +4018,118 @@ function decode(data) {
     "dotenv": "^16.4.7"
   }
 }
+===== README.md =====
+# Lead generation skeleton
 
+Local Node.js starts a Gemini Deep Research run, polls until the report is ready, and POSTs the markdown to a Google Apps Script web app. The script files leads into Sheets, writes a briefing doc for high-priority accounts, drafts an outreach email, geocodes headquarters, attaches the briefing to matching calendar events, and creates a follow-up task.
+
+```
+.env
+  |
+  v
+index.js
+  DRY_RUN / REPORT_FILE / RESUME -> existing Node paths
+  otherwise                      -> python -m fallback
+                                    BILLING_ENABLED and probe ok -> node index.js (LEADGEN_ROUTE=paid)
+                                      interactions.create + poll
+                                    DEMO_MODE -> fallback/demo_leads.json
+                                    otherwise -> Flash planner, Search grounding, reviewer, markdown
+  save output/last-report.md
+  POST JSON { secret, interactionId, markdown, seller }
+  |
+  v
+Apps Script doPost
+  authorize secret
+  parse the markdown table
+  Sheets  Docs  Drive  Gmail draft  Maps  Calendar  Tasks
+```
+
+`gemini-2.5-flash` grounding on the free tier is 500 requests per day, shared with Flash-Lite. The 5,000-search monthly figure on Google's pricing page applies to Gemini 3 and newer models. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
+
+## Free-tier boundary
+
+Sheets, Docs, Drive, Gmail drafts, the built-in Maps geocoder, Calendar, and Tasks run inside a normal Google account and Apps Script quotas. No Maps Platform key and no paid Workspace add-on is required.
+
+The Gemini side is narrower than "free":
+
+- The Interactions API has a free tier. On that tier, stored interactions are retained for one day. Background Deep Research requires `store: true`, so a failed webhook must be resumed or replayed inside that window.
+- Google's Deep Research documentation prices a typical `deep-research-preview-04-2026` task on a pay-as-you-go basis (their published estimate is about $1–$3, and the Max agent is higher). This skeleton does not treat that call as free. Confirm the key's project in AI Studio before `DRY_RUN=false`.
+- Visualizations are off, collaborative planning is off, and the Max agent is not the default. `DRY_RUN=true` exercises the webhook without calling Gemini. `RESUME_INTERACTION_ID` and `REPORT_FILE` recover a run that already finished.
+
+Apps Script consumer executions are limited to about six minutes. The webhook processes at most 15 leads, scans at most 500 calendar events, and updates at most five of them.
+
+## Security
+
+The web app has to be deployed as "Anyone" so Node can POST without a Google user session. `WEBHOOK_SECRET` is checked before any write. Use a random string of at least 16 characters, put the same value in `.env` and in Apps Script script properties, and treat the `/exec` URL like a credential.
+
+The research prompt tells the agent to leave unknown emails as `unknown`. The script does not invent a recipient. When no public email exists, the draft is addressed to the script owner and prefixed `[Needs recipient]`. Nothing is sent.
+
+Sheet cells that start with `=`, `+`, `-`, or `@` are prefixed so a model-written table cannot become a formula.
+
+## Local setup
+
+Requires Node.js 22 or newer (required by `@google/genai` 3.x).
+
+```powershell
+copy .env.example .env
+npm install
+npm start
+```
+
+With the example `.env`, `DRY_RUN=true` and the webhook URL is still a placeholder, so the first start fails until you either clear `GOOGLE_WEBHOOK_URL` (local fixture only) or paste a real `/exec` URL and secret.
+
+A live run needs `DRY_RUN=false`, `GEMINI_API_KEY`, `SELLER_OFFERING`, `TARGET_INDUSTRY`, the webhook URL, and the secret.
+
+If the process is interrupted after the interaction id is printed, the research continues on Google's side:
+
+```powershell
+# set RESUME_INTERACTION_ID in .env, then
+npm start
+```
+
+If the report was saved and the webhook failed:
+
+```powershell
+# REPORT_FILE=output/last-report.md
+npm start
+```
+
+Mode order is `REPORT_FILE`, then `DRY_RUN`, then `RESUME_INTERACTION_ID`, then a new research task.
+
+## Apps Script setup
+
+1. Create a project at [script.google.com](https://script.google.com).
+2. Replace `Code.gs` with `apps-script/Code.gs`.
+3. Open Project Settings, show the manifest, and replace it with `apps-script/appsscript.json`. Set `timeZone` to your timezone. `Etc/GMT-3` is UTC+3. Task due dates use this zone.
+4. In the editor, open Services and add the Google Tasks API if the manifest did not enable it. The symbol must be `Tasks`.
+5. Run `install` and approve the scopes. The log prints the spreadsheet URL and the "Leads Briefings" folder URL.
+6. In Project Settings > Script properties, set `WEBHOOK_SECRET` to the same value as `.env`. Optional: `HOME_BASE_ADDRESS` (used for distance), `SELLER_NAME`, `SELLER_OFFERING`, `CALENDAR_LOOKAHEAD_DAYS`, `MAX_LEADS`, `TASKLIST_ID`.
+7. Deploy > New deployment > Web app. Execute as **Me**. Who has access: **Anyone**. Copy the URL that ends in `/exec`.
+8. Open that URL in a browser. The JSON says whether the secret, spreadsheet, and folder are configured. It does not reveal the secret.
+
+`install` creates the spreadsheet and folder on first run and stores their ids in script properties. Run it before the first POST so the OAuth consent happens in the editor. A POST that arrives before consent gets an HTML error page; Node reports that as a non-JSON webhook response and leaves `output/last-report.md` in place.
+
+## Lead contract
+
+The agent is asked for one markdown table and a `## Briefing: {Company}` section for each High row. Structured output is not available on this agent, so the table is the contract.
+
+| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |
+
+Priority `High` creates the briefing doc, files it in Drive, scans the primary calendar, and creates "Review pitch deck for [Company]". Other rows are still written to Sheets. A draft is created only when the hook cell has public text.
+
+Google Tasks stores a due **date**, not a time. The task is due on the calendar date of the instant 48 hours after processing, in the script timezone. The exact UTC instant is written in the task notes.
+
+A repeated delivery of the same `interactionId` returns `duplicate: true` and does not create a second set of rows. Briefing files, drafts, and tasks are also looked up by stable title before a second one is created.
+
+## Failure behavior
+
+| What happened | What to do |
+| --- | --- |
+| Process killed while polling | `RESUME_INTERACTION_ID` |
+| Webhook rejected the payload | Fix Apps Script, then `REPORT_FILE=output/last-report.md` |
+| Report had no table | The file is saved and the webhook is not called |
+| One lead's geocode, doc, draft, or task failed | That row is still written. The Notes column and the JSON `errors` array carry the message |
+| Script lock was busy | Response is `retryable: true`. Node retries the POST with backoff |
 ===== render.yaml =====
 # Web service. Leave PORT unset so Render assigns it.
 # DRY_RUN stays true until you choose a live Gemini run.
@@ -3835,7 +4180,6 @@ services:
         sync: false
       - key: WEBHOOK_SECRET
         sync: false
-
 ===== server.js =====
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -3843,10 +4187,11 @@ import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
-import { demoLeads } from './lib/leads.js';
-import { businessEnv, deskAuthorized, executeDryRun, redactSecrets } from './lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
+import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
+import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
-import { loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
+import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 
 const root = process.cwd();
 const webRoot = path.resolve(root, 'web');
@@ -3922,30 +4267,21 @@ function webhookConfig() {
   return { url, secret };
 }
 
+function missingWebhook(action) {
+  const { url, secret } = webhookConfig();
+  const tail = action === 'save' ? 'Nothing was saved in Gmail.' : 'Nothing was read from Google.';
+  if (!url && !secret) return `GOOGLE_WEBHOOK_URL and WEBHOOK_SECRET are empty. ${tail}`;
+  if (!url) return `GOOGLE_WEBHOOK_URL is empty. ${tail}`;
+  if (!secret) return `WEBHOOK_SECRET is empty. Paste the same string you saved in Apps Script. ${tail}`;
+  return '';
+}
+
 async function callAppsScript(payload) {
   const { url, secret } = webhookConfig();
-  if (!url || !secret) {
-    return { status: 424, body: { ok: false, error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was read from Google.' } };
-  }
+  const missing = missingWebhook('read');
+  if (missing) return { status: 424, body: { ok: false, error: missing } };
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Secret': secret,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(120000),
-    });
-    const raw = await response.text();
-    let body;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      return { status: 502, body: { ok: false, error: 'Apps Script returned a non-JSON response.' } };
-    }
-    if (!body.ok) return { status: 409, body };
-    return { status: 200, body };
+    return await postAppsScript(url, secret, payload);
   } catch {
     return { status: 502, body: { ok: false, error: 'The desk could not reach Apps Script.' } };
   }
@@ -3953,42 +4289,22 @@ async function callAppsScript(payload) {
 
 async function postApprove(company, interactionId, seller = {}) {
   const { url, secret } = webhookConfig();
-  if (!url || !secret) {
-    return {
-      status: 424,
-      body: {
-        ok: false,
-        synced: false,
-        sent: false,
-        error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was saved in Gmail.',
-      },
-    };
+  const missing = missingWebhook('save');
+  if (missing) {
+    return { status: 424, body: { ok: false, synced: false, sent: false, error: missing } };
   }
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Webhook-Secret': secret,
-    },
-    body: JSON.stringify({
+  try {
+    const outcome = await postAppsScript(url, secret, {
       action: 'approve',
       company,
       interactionId,
       ...(seller.name || seller.offering ? { seller } : {}),
-    }),
-    signal: AbortSignal.timeout(120000),
-  });
-  const raw = await response.text();
-  let body;
-  try {
-    body = JSON.parse(raw);
+    });
+    if (!outcome.body?.ok) return { status: outcome.status, body: { ...outcome.body, sent: false, synced: false } };
+    return { status: 200, body: { ...outcome.body, sent: false, synced: true } };
   } catch {
-    return { status: 502, body: { ok: false, sent: false, error: 'Apps Script returned a non-JSON response. Nothing was sent.' } };
+    return { status: 502, body: { ok: false, sent: false, error: 'The approve call did not reach Apps Script. Nothing was sent.' } };
   }
-  if (!body.ok) {
-    return { status: 409, body: { ...body, sent: false, synced: false } };
-  }
-  return { status: 200, body: { ...body, sent: false, synced: true } };
 }
 
 async function handleApi(request, response, url) {
@@ -3997,7 +4313,7 @@ async function handleApi(request, response, url) {
     return;
   }
   if (request.method === 'GET' && url.pathname === '/api/leads') {
-    send(response, 200, { ok: true, leads: demoLeads(root) });
+    send(response, 200, { ok: true, leads: allLeads(root) });
     return;
   }
   const runMatch = url.pathname.match(/^\/api\/runs\/([^/]+)$/);
@@ -4033,6 +4349,14 @@ async function handleApi(request, response, url) {
     const files = Array.isArray(body.files) ? body.files.slice(0, 12) : [];
     const sources = saveUploads(root, files);
     send(response, sources.some((item) => item.ok) ? 200 : 422, { ok: sources.some((item) => item.ok), sources });
+    return;
+  }
+  const sourceMatch = url.pathname.match(/^\/api\/sources\/([^/]+)$/);
+  if (request.method === 'DELETE' && sourceMatch) {
+    const removed = deleteUpload(root, decodeURIComponent(sourceMatch[1]));
+    send(response, removed ? 200 : 404, removed
+      ? { ok: true }
+      : { ok: false, error: 'That source is not on this desk.' });
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/google') {
@@ -4091,7 +4415,8 @@ async function handleApi(request, response, url) {
         urls: built.urls,
         tabular: built.tabular,
       });
-      send(response, 200, { ok: true, explanation: answer.explanation, leads: answer.leads });
+      const leads = rememberLeads(root, answer.leads);
+      send(response, 200, { ok: true, explanation: answer.explanation, leads });
     } catch (error) {
       const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
       send(response, 502, { ok: false, error: message || 'Gemini did not answer. Nothing was written to Sheets.' });
@@ -4108,7 +4433,8 @@ async function handleApi(request, response, url) {
     }
     const id = randomUUID();
     const outputDir = path.join(root, 'output', 'runs', id);
-    const run = await executeDryRun(outputDir, { ...process.env, ...businessEnv(body) });
+    const run = await executeRun(outputDir, { ...process.env, ...businessEnv(body) });
+    const stored = rememberLeads(root, run.leads || []);
     const result = run.result || {
       ok: false,
       synced: false,
@@ -4118,9 +4444,10 @@ async function handleApi(request, response, url) {
       id,
       ok: Boolean(result.ok && result.synced !== false),
       synced: Boolean(result.synced),
-      interactionId: result.interactionId || '',
+      interactionId: result.interactionId || stored[0]?.interactionId || '',
       error: result.error || '',
       appsScript: result.appsScript || null,
+      leads: stored,
     };
     runs.set(id, record);
     send(response, record.ok ? 200 : 424, record);
@@ -4129,7 +4456,7 @@ async function handleApi(request, response, url) {
   const approveMatch = url.pathname.match(/^\/api\/leads\/([^/]+)\/approve$/);
   if (request.method === 'POST' && approveMatch) {
     const id = decodeURIComponent(approveMatch[1]);
-    const lead = demoLeads(root).find((item) => item.id === id);
+    const lead = findLead(root, id);
     if (!lead) {
       send(response, 404, { ok: false, sent: false, error: 'That lead is not on this desk.' });
       return;
@@ -4229,10 +4556,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToP
     console.log(`Lead desk listening on ${port}`);
   });
 }
-
 ===== test/health.test.js =====
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -4241,7 +4567,9 @@ import { shouldDelegate } from '../lib/route.js';
 import { demoLeads } from '../lib/leads.js';
 import { askPrompt, parseLeadAnswer } from '../lib/ask.js';
 import { officeText } from '../lib/office.js';
-import { businessEnv, deskAuthorized, executeDryRun } from '../lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeDryRun, executeRun } from '../lib/desk-run.js';
+import { leadsFromMarkdown } from '../lib/lead-store.js';
+import { deleteUpload, saveUploads } from '../lib/uploads.js';
 
 process.env.GOOGLE_WEBHOOK_URL = '';
 process.env.WEBHOOK_SECRET = '';
@@ -4297,6 +4625,19 @@ test('an ask answer keeps only sourced leads and drops unknown emails', () => {
   assert.match(askPrompt('Find operators', { SELLER_OFFERING: 'Routing software' }), /Routing software/);
 });
 
+test('a spreadsheet with inline text is read cell by cell', () => {
+  const xml = '<worksheet><sheetData><row><c t="inlineStr"><is><t>EdTech Academy</t></is></c><c t="inlineStr"><is><t>ada@school.example</t></is></c></row></sheetData></worksheet>';
+  const name = Buffer.from('xl/worksheets/sheet1.xml');
+  const data = Buffer.from(xml);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt16LE(name.length, 26);
+  const text = officeText(Buffer.concat([local, name, data]));
+  assert.match(text, /EdTech Academy/);
+  assert.match(text, /ada@school.example/);
+});
+
 test('office text is read out of a docx zip', () => {
   const xml = '<w:document><w:t>Northwind pump</w:t></w:document>';
   const name = Buffer.from('word/document.xml');
@@ -4338,11 +4679,15 @@ test('webhook callers do not put the secret in the JSON body', () => {
   const index = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const script = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const python = readFileSync(new URL('../fallback/pipeline.py', import.meta.url), 'utf8');
+  const desk = readFileSync(new URL('../lib/desk-run.js', import.meta.url), 'utf8');
   assert.equal(index.includes('secret: config.webhookSecret'), false);
   assert.equal(script.includes('body.secret'), false);
   assert.equal(python.includes('"secret": settings.webhook_secret'), false);
+  assert.equal(python.includes('X-Webhook-Secret'), true);
   assert.equal(script.includes('findDraftBySubject_'), true);
   assert.equal(script.includes('findOpenTask_'), true);
+  assert.equal(script.includes('sheetKey_'), true);
+  assert.equal(desk.includes("DRY_RUN: 'true'"), false);
 });
 
 test('a dry run with no webhook reports that nothing was written', async () => {
@@ -4353,10 +4698,70 @@ test('a dry run with no webhook reports that nothing was written', async () => {
     WEBHOOK_SECRET: '',
     GEMINI_API_KEY: '',
     DRY_RUN: 'true',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: '',
+    BILLING_ENABLED: 'false',
+    FORCE_FREE_TIER: 'false',
   });
   assert.equal(run.code, 0);
   assert.equal(run.result.synced, false);
   assert.match(run.result.error, /Nothing was written/);
+  assert.equal(run.leads[0].company, 'Northwind Analytics');
+  assert.equal(run.leads[0].interactionId.startsWith('dry-run-'), true);
+});
+
+test('a company re-research stays on that company during a dry run', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-focus-'));
+  const run = await executeRun(dir, {
+    ...process.env,
+    DRY_RUN: 'true',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: '',
+    GOOGLE_WEBHOOK_URL: '',
+    WEBHOOK_SECRET: '',
+    GEMINI_API_KEY: '',
+    RESEARCH_COMPANY: 'EdTech Academy',
+    RESEARCH_DOMAIN: 'academy.example',
+  });
+  assert.equal(run.code, 0);
+  assert.equal(run.leads.length, 1);
+  assert.equal(run.leads[0].company, 'EdTech Academy');
+  assert.equal(run.leads[0].domain, 'academy.example');
+  assert.equal(run.leads[0].hook, '');
+});
+
+test('a live run keeps DRY_RUN false and does not write the fixture', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-live-'));
+  const run = await executeRun(dir, {
+    ...process.env,
+    DRY_RUN: 'false',
+    DEMO_MODE: 'false',
+    LEADGEN_ROUTE: 'paid',
+    BILLING_ENABLED: 'false',
+    FORCE_FREE_TIER: 'false',
+    GEMINI_API_KEY: '',
+    GOOGLE_WEBHOOK_URL: '',
+    WEBHOOK_SECRET: '',
+    SELLER_OFFERING: '',
+    TARGET_INDUSTRY: '',
+  });
+  assert.notEqual(run.code, 0);
+  assert.match(run.stderr, /GEMINI_API_KEY/);
+  assert.equal(run.leads.length, 0);
+});
+
+test('discovered leads keep their interaction id and a deleted source removes both files', () => {
+  const parsed = leadsFromMarkdown([
+    '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |',
+    '| Northwind | northwind.example | Chicago | Ada | Ops | unknown | Manual dispatch | Public case study | High | notes.pdf |',
+  ].join('\n'), 'batch-1');
+  assert.equal(parsed[0].interactionId, 'batch-1');
+  assert.equal(parsed[0].negative, false);
+  const dir = mkdtempSync(path.join(tmpdir(), 'lead-src-'));
+  const saved = saveUploads(dir, [{ name: 'notes.txt', mime: 'text/plain', data: Buffer.from('hello').toString('base64') }]);
+  assert.equal(deleteUpload(dir, saved[0].id), true);
+  assert.equal(existsSync(path.join(dir, 'output', 'uploads', `${saved[0].id}.bin`)), false);
+  assert.equal(existsSync(path.join(dir, 'output', 'uploads', `${saved[0].id}.json`)), false);
 });
 
 test('the desk API returns leads and rejects a missing token', async () => {
@@ -4381,12 +4786,26 @@ test('the desk API returns leads and rejects a missing token', async () => {
   process.env.DESK_TOKEN = '';
 });
 
-===== web/bg.jpg =====
-(binary file omitted)
-
-===== web/contoso.jpg =====
-(binary file omitted)
-
+test('an Apps Script redirect keeps the secret on the second POST', async () => {
+  const { createServer } = await import('node:http');
+  const { postAppsScript } = await import('../lib/webhook.js');
+  const server = createServer((request, response) => {
+    if (request.url === '/exec') {
+      response.writeHead(302, { Location: '/done' });
+      response.end();
+      return;
+    }
+    const ok = request.method === 'POST' && request.headers['x-webhook-secret'] === 'abcdefghijklmnop';
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ ok }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
+  assert.equal(result.body.ok, true);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+});
 ===== web/index.html =====
 <!DOCTYPE html>
 <html lang="en">
@@ -4944,9 +5363,7 @@ test('the desk API returns leads and rejects a missing token', async () => {
   .phase.bad { background: var(--bad-bg); color: var(--bad); }
   .phase.warn { background: var(--warn-bg); color: var(--warn); }
   .spin { width: 14px; height: 14px; }
-  .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .col { background: var(--wash); border-radius: 16px; padding: 10px; min-height: 180px; }
-  .col h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
   .lead {
     background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; border: 1px solid var(--line);
   }
@@ -5158,8 +5575,7 @@ test('the desk API returns leads and rejects a missing token', async () => {
           <div class="doc-mark" id="docMark"></div>
           <h1 id="deskTitle" tabindex="-1">Lead Generation</h1>
           <p class="meta" id="sourceMeta">0 sources</p>
-          <p class="doc-copy">Add a file or a Google Workspace item. The ask bar reads the checked sources with Gemini. Drafts stay in Gmail until you approve them.</p>
-          <div class="research-bar">
+          <div class="research-bar" hidden>
             <h2 id="runHeading">Posting the saved table</h2>
             <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
             <div class="phases" id="phases" aria-label="Research phase"></div>
@@ -5170,10 +5586,7 @@ test('the desk API returns leads and rejects a missing token', async () => {
               <button type="button" id="simResume">Resume batch</button>
             </div>
           </div>
-          <div class="doc-text" id="docText">
-            <p>High rows can receive a briefing, a calendar link, and a task due on the date 48 hours later. A negative match stays on the sheet only.</p>
-            <p>Nothing on this desk sends an email.</p>
-          </div>
+          <div class="doc-text" id="docText"></div>
         </div>
         <div class="studio-dock">
           <form class="studio-ask" id="askForm">
@@ -5183,7 +5596,6 @@ test('the desk API returns leads and rejects a missing token', async () => {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V6M6.5 11 12 5.5 17.5 11"/></svg>
             </button>
           </form>
-          <p class="studio-note">Checked sources only. A draft is not an email.</p>
         </div>
       </section>
       <aside class="panel tools">
@@ -5204,9 +5616,9 @@ test('the desk API returns leads and rejects a missing token', async () => {
 
     <section class="view page" id="view-pipeline" hidden>
       <div class="quote-card">
-        <h2>Lead pipeline</h2>
-        <p class="lede">One column per Workspace handoff. High-intent rows are green. A negative search match stays red and does not create a draft.</p>
-        <div class="board" id="board"></div>
+        <h2>Lead directory</h2>
+        <p class="lede">Every company in this batch, with its status on the card. A negative match stays red and does not create a draft.</p>
+        <div class="board" id="leadDirectory"></div>
       </div>
     </section>
 
@@ -5373,7 +5785,7 @@ const spinner = `<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><circl
 
 const slides = [
   { title: "DESK", text: "Start from an ideal customer profile. The desk shows planning, search, and drafting while the batch is still running." },
-  { title: "PIPELINE", text: "Leads move from Discovered to a Drive briefing, a Gmail draft, and a task only after a person can see why." },
+  { title: "PIPELINE", text: "Each company stays in one directory. A briefing, a Gmail draft, and a task appear only after a person can see why." },
   { title: "WORKSPACE", text: "Sheets, Docs, Drive, and Gmail drafts are the handoff. The pitch stays here until you approve it." }
 ];
 const thumbs = [
@@ -5386,7 +5798,7 @@ let batchInteractionId = '';
 const tiles = [
   { view: "studio", title: "Research", copy: "Sources, ask, and the batch", icon: "calendar", color: "#188038" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
-  { view: "pipeline", title: "Pipeline", copy: "Discovered through the task", icon: "sparkles", color: "#1a73e8" },
+  { view: "pipeline", title: "Pipeline", copy: "Companies and their status", icon: "sparkles", color: "#1a73e8" },
   { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
   { view: "pains", title: "Pain points", copy: "Sourced problems and misses", icon: "activity", color: "#e37400" },
   { view: "priority", title: "Priority", copy: "High rows and the 48-hour task", icon: "bars", color: "#188038" },
@@ -5396,7 +5808,7 @@ const tools = [
   { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
   { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
   { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
-  { sheet: "pipeline", title: "Pipeline", copy: "Stage counts", icon: "bars", color: "#d93025" },
+  { sheet: "pipeline", title: "Pipeline", copy: "Lead directory", icon: "bars", color: "#d93025" },
   { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4" },
   { sheet: "workspace", title: "Lead sheet", copy: "Google Sheets", icon: "sheets" },
   { sheet: "tasks", title: "Tasks", copy: "48-hour follow-up", icon: "tasks", color: "#1a73e8" },
@@ -5556,8 +5968,8 @@ function drawerBody(name) {
     return rows.map((lead) => `<article class="task-card"><b>${escapeHtml(lead.task)}</b><span>${escapeHtml(lead.taskWhy)}</span></article>`).join("") || "<p>No tasks for this batch. A High row creates a task due on the date 48 hours later.</p>";
   }
   if (name === "workspace") {
-    const headers = ["Company", "Domain", "Headquarters", "Priority", "Stage"];
-    const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(stageLabel(lead.stage))}</td></tr>`).join("");
+    const headers = ["Company", "Domain", "Headquarters", "Priority", "Status"];
+    const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(statusTag(lead).label)}</td></tr>`).join("");
     return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
   if (name === "map") {
@@ -5703,13 +6115,14 @@ function paintPhases(active, failed) {
     return `<span class="${cls}">${spin}${label}</span>`;
   }).join("");
 }
-function startRun() {
+function startRun(extra) {
   clearTimeout(timer);
   phase = "plan";
   if (inSheet()) openSheet("run");
   else show("studio");
-  step("plan", "Posting the saved table", "Gemini is not called from this button. Apps Script is the only writer.");
-  postDesk("/api/runs", profileBody())
+  const focus = extra && extra.company ? extra.company : "";
+  step("plan", focus ? "Researching " + focus : "Posting the research run", "The desk uses the Research settings on the server. A draft is created only when you approve.");
+  postDesk("/api/runs", Object.assign(profileBody(), extra || {}))
     .then(async (response) => ({ response, body: await response.json() }))
     .then(({ response, body }) => {
       if (!response.ok || !body.ok || body.synced === false) {
@@ -5719,10 +6132,8 @@ function startRun() {
         return;
       }
       batchInteractionId = body.interactionId || "";
-      leads.forEach((lead) => {
-        lead.interactionId = batchInteractionId;
-        if (lead.priority === "High" && !lead.negative) lead.stage = "task";
-      });
+      if (Array.isArray(body.leads) && body.leads.length) mergeLeads(body.leads);
+      else leads.forEach((lead) => { if (!lead.interactionId) lead.interactionId = batchInteractionId; });
       step("plan", "Apps Script accepted the batch", "High rows have a briefing and a task. A draft is created only when you approve. Nothing was sent.");
       toast("Apps Script accepted the batch. Nothing was sent.");
       reveal("pipeline");
@@ -5774,25 +6185,27 @@ document.getElementById("simTimeout").onclick = () => {
 };
 document.getElementById("simResume").onclick = () => startRun();
 
-function stageLabel(stage) {
-  return { discovered: "Discovered", briefing: "Briefing created", draft: "Draft ready", task: "Action required", archived: "Archived" }[stage] || stage;
+function statusTag(lead) {
+  if (lead.archived) return { cls: "low", label: "Archived" };
+  if (lead.negative) return { cls: "neg", label: "Negative Match" };
+  if (lead.priority === "High") return { cls: "high", label: "High Priority" };
+  return { cls: "low", label: "Sourced" };
 }
 function renderBoard() {
-  const columns = ["discovered", "briefing", "draft", "task"];
-  document.getElementById("board").innerHTML = columns.map((stage) => {
-    const cards = leads.filter((lead) => lead.stage === stage).map((lead) => card(lead)).join("");
-    const titles = { discovered: "Discovered", briefing: "Briefing created (Drive)", draft: "Draft ready (Gmail)", task: "Action required (Tasks)" };
-    return `<section class="col"><h3>${titles[stage]}</h3>${cards || ""}</section>`;
-  }).join("");
+  const directory = document.getElementById("leadDirectory");
+  const visible = leads.filter((lead) => !lead.archived);
+  directory.innerHTML = visible.map((lead) => card(lead)).join("") || `<p class="lede">No companies in this directory.</p>`;
   bindLeadActions();
 }
 function card(lead) {
-  const tag = lead.negative ? "neg" : lead.priority === "High" ? "high" : "low";
-  const label = lead.negative ? "Negative match" : lead.priority;
-  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${escapeHtml(lead.id)}">${escapeHtml(lead.company)}</button><p>${escapeHtml(lead.pain)}</p><span class="tag ${tag}">${escapeHtml(label)}</span><div class="actions">
+  const tag = statusTag(lead);
+  const approve = lead.priority === "High" && !lead.negative
+    ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch</button>`
+    : "";
+  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${escapeHtml(lead.id)}">${escapeHtml(lead.company)}</button><p>${escapeHtml(lead.pain)}</p><span class="tag ${tag.cls}">${escapeHtml(tag.label)}</span><div class="actions">
     <button type="button" data-act="report" data-id="${lead.id}">Open report</button>
     <button type="button" data-act="research" data-id="${lead.id}">Re-research company</button>
-    ${lead.priority === "High" && lead.stage === "task" ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch and clear task</button>` : ""}
+    ${approve}
     <button type="button" data-act="archive" data-id="${lead.id}">Archive lead</button>
   </div></article>`;
 }
@@ -5806,11 +6219,21 @@ function act(name, id) {
   if (!lead) return;
   if (name === "report") { selected = lead; show("lead"); return; }
   if (name === "research") {
-    startRun();
+    const profile = profileBody();
+    startRun({
+      company: lead.company,
+      domain: lead.domain,
+      sellerName: profile.sellerName,
+      offering: profile.offering,
+      icp: profile.icp,
+      industry: profile.industry,
+      region: profile.region,
+      maxLeads: profile.maxLeads
+    });
     return;
   }
   if (name === "archive") {
-    lead.stage = "archived";
+    lead.archived = true;
     toast(lead.company + " archived on this desk. Workspace files were not deleted.");
     renderBoard();
     if (inSheet()) openSheet("pipeline");
@@ -5840,11 +6263,28 @@ function profileBody() {
   return body;
 }
 function deskHeaders() {
-  return { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json" };
+  let token = "";
+  try { token = localStorage.getItem("lead-desk-token") || ""; } catch (error) { token = ""; }
+  if (!token && window.deskToken) token = String(window.deskToken);
+  if (token) headers["X-Desk-Token"] = token;
+  return headers;
+}
+function deskSend(method, url, body, allowPrompt) {
+  return fetch(url, {
+    method: method,
+    headers: deskHeaders(),
+    body: body == null ? undefined : JSON.stringify(body)
+  }).then((response) => {
+    if (response.status !== 401 || !allowPrompt) return response;
+    const token = window.prompt("Enter the desk token");
+    if (!token) return response;
+    try { localStorage.setItem("lead-desk-token", token.trim()); } catch (error) { window.deskToken = token.trim(); }
+    return deskSend(method, url, body, false);
+  });
 }
 function postDesk(url, body) {
-  const send = () => fetch(url, { method: "POST", headers: deskHeaders(), body: JSON.stringify(body) });
-  return send().then((response) => (response.status === 401 ? send() : response));
+  return deskSend("POST", url, body, true);
 }
 function approveLead(lead) {
   const profile = profileBody();
@@ -5860,7 +6300,6 @@ function approveLead(lead) {
         toast(body.error || "The draft was not saved. Nothing was sent.");
         return;
       }
-      lead.stage = "draft";
       toast(body.needsRecipient
         ? "Draft saved in your mailbox because no public email is on file. The pitch is not sent."
         : "Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
@@ -5895,12 +6334,10 @@ document.getElementById("approveDraft").onclick = () => {
     toast("No pitch to approve. A negative match does not create a Gmail draft.");
     return;
   }
-  selected.stage = "draft";
-  toast("Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
-  reveal("pipeline");
+  approveLead(selected);
 };
 document.getElementById("holdDraft").onclick = () => {
-  toast("Draft kept. The task stays on the board.");
+  toast("Draft kept. The follow-up task stays open.");
   reveal("pipeline");
 };
 function renderWorkspace() {
@@ -5994,11 +6431,26 @@ function paintSourceCount() {
   selectAll.checked = sources.length > 0 && saved === sources.length;
   selectAll.indeterminate = saved > 0 && saved < sources.length;
 }
-document.getElementById("sourceList").addEventListener("click", (event) => {
+document.getElementById("sourceList").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-del]");
   if (!button) return;
   const index = sources.findIndex((item) => item.id === button.dataset.del);
-  if (index >= 0) sources.splice(index, 1);
+  if (index < 0) return;
+  const item = sources[index];
+  if (item.serverId) {
+    try {
+      const response = await deskSend("DELETE", "/api/sources/" + encodeURIComponent(item.serverId), null, true);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.ok) {
+        toast(body.error || "The file was not removed.");
+        return;
+      }
+    } catch (error) {
+      toast("The file was not removed.");
+      return;
+    }
+  }
+  sources.splice(index, 1);
   renderSources();
 });
 document.getElementById("addSources").onclick = () => document.getElementById("sourceFiles").click();
@@ -6133,6 +6585,7 @@ document.getElementById("askForm").onsubmit = async (event) => {
     const reply = document.createElement("p");
     reply.textContent = body.explanation || "Gemini returned no explanation.";
     box.append(reply);
+    mergeLeads(body.leads || []);
     paintAskedLeads(body.leads || []);
   } catch (error) {
     const reply = document.createElement("p");
@@ -6141,6 +6594,32 @@ document.getElementById("askForm").onsubmit = async (event) => {
   }
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
+function mergeLeads(rows) {
+  (rows || []).forEach((raw) => {
+    if (!raw || !raw.company) return;
+    const id = raw.id || String(raw.company).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lead";
+    const lead = {
+      id: id,
+      company: raw.company,
+      domain: raw.domain || "",
+      hq: raw.hq || raw.hqAddress || "",
+      pain: raw.pain || raw.painPoint || "No public pain point.",
+      hook: raw.hook || "",
+      priority: raw.priority === "High" ? "High" : "Low",
+      source: raw.source || "",
+      photo: raw.photo || "",
+      negative: raw.negative != null ? raw.negative : !(raw.priority === "High" && raw.hook),
+      interactionId: raw.interactionId || batchInteractionId || "",
+      task: raw.task || "",
+      taskWhy: raw.taskWhy || "",
+      distance: raw.distance || "",
+      coords: raw.coords || ""
+    };
+    const index = leads.findIndex((item) => item.id === lead.id);
+    if (index >= 0) leads[index] = Object.assign({}, leads[index], lead, { archived: leads[index].archived });
+    else leads.push(lead);
+  });
+}
 function paintAskedLeads(rows) {
   const list = document.getElementById("askLeadList");
   if (!rows.length) {
@@ -6233,6 +6712,3 @@ loadDesk().catch(() => toast("The lead list did not load. Nothing was written to
 </script>
 </body>
 </html>
-
-===== web/northwind.jpg =====
-(binary file omitted)

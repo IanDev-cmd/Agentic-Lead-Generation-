@@ -11,6 +11,7 @@ import logging
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -81,13 +82,20 @@ def run_free(settings: Settings) -> dict:
     return record
 
 
+def _focus_line(settings: Settings) -> str:
+    if not settings.research_company:
+        return ""
+    domain = f" ({settings.research_domain})" if settings.research_domain else ""
+    return f"\nFocus this run on one company: {settings.research_company}{domain}. Use public sources about that company."
+
+
 def plan_searches(client, settings: Settings) -> list[str]:
     prompt = f"""
 Break this ideal-customer search into exactly 3 public web search queries.
 Industry: {settings.industry}
 Region: {settings.region}
 Offering: {settings.offering}
-Ideal customer: {settings.icp}
+Ideal customer: {settings.icp}{_focus_line(settings)}
 
 Return only JSON of the form {{"strategies": ["query 1", "query 2", "query 3"]}}.
 Each query looks for companies and a public operating problem. Do not search for personal email addresses, phone numbers, or private profiles.
@@ -161,7 +169,7 @@ Do not request searches for personal emails or private profiles.
 def synthesize(client, settings: Settings, findings: list[dict]) -> str:
     prompt = f"""
 Turn these public research notes into a lead list for this offering: {settings.offering}
-Ideal customer: {settings.icp}
+Ideal customer: {settings.icp}{_focus_line(settings)}
 Maximum rows: {settings.max_leads}
 
 Notes:
@@ -233,6 +241,41 @@ def _write_webhook_result(settings: Settings, payload: dict) -> None:
     (settings.output_dir / "last-webhook.json").write_text(json.dumps(safe, indent=2), encoding="utf-8")
 
 
+class _ManualRedirect(urllib.request.HTTPRedirectHandler):
+    """Leave 3xx responses in place so the caller can POST again with the same body."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        return fp
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+
+def _post_preserving_redirect(url: str, body: bytes, headers: dict, timeout: int, hops: int = 5) -> tuple[int, str]:
+    opener = urllib.request.build_opener(_ManualRedirect)
+    current = url
+    for _hop in range(hops):
+        request = urllib.request.Request(current, data=body, headers=headers, method="POST")
+        try:
+            with opener.open(request, timeout=timeout) as response:
+                status = getattr(response, "status", None) or response.getcode()
+                raw = response.read().decode("utf-8", errors="replace")
+                location = response.headers.get("Location")
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            raw = exc.read().decode("utf-8", errors="replace")
+            location = exc.headers.get("Location") if exc.headers else ""
+        if status in (301, 302, 303, 307, 308):
+            if not location:
+                raise PipelineError("Apps Script redirected without a new address.")
+            current = urllib.parse.urljoin(current, location)
+            continue
+        return status, raw
+    raise PipelineError("Apps Script redirected too many times.")
+
+
 def post_webhook(settings: Settings, record: dict) -> None:
     if not settings.webhook_url.startswith("https://") or is_placeholder(settings.webhook_url):
         raise PipelineError("GOOGLE_WEBHOOK_URL must be the https Apps Script /exec URL.")
@@ -248,19 +291,17 @@ def post_webhook(settings: Settings, record: dict) -> None:
             "markdown": record["markdown"],
         }
     ).encode("utf-8")
+    headers = {"Content-Type": "application/json", "X-Webhook-Secret": settings.webhook_secret}
     delay = 1.0
     last_error: Exception | None = None
     for attempt in range(1, 5):
-        request = urllib.request.Request(
-            settings.webhook_url,
-            data=body,
-            headers={"Content-Type": "application/json", "X-Webhook-Secret": settings.webhook_secret},
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=settings.request_timeout_seconds) as response:
-                raw = response.read().decode("utf-8", errors="replace")
-                status = response.status
+            status, raw = _post_preserving_redirect(
+                settings.webhook_url,
+                body,
+                headers,
+                settings.request_timeout_seconds,
+            )
             payload = json.loads(raw)
             if status >= 400 or payload.get("ok") is False:
                 raise PipelineError(str(payload.get("error") or f"Webhook failed with HTTP {status}"))

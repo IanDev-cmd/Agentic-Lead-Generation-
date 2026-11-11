@@ -554,9 +554,7 @@
   .phase.bad { background: var(--bad-bg); color: var(--bad); }
   .phase.warn { background: var(--warn-bg); color: var(--warn); }
   .spin { width: 14px; height: 14px; }
-  .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .col { background: var(--wash); border-radius: 16px; padding: 10px; min-height: 180px; }
-  .col h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
   .lead {
     background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; border: 1px solid var(--line);
   }
@@ -809,9 +807,9 @@
 
     <section class="view page" id="view-pipeline" hidden>
       <div class="quote-card">
-        <h2>Lead pipeline</h2>
-        <p class="lede">One column per Workspace handoff. High-intent rows are green. A negative search match stays red and does not create a draft.</p>
-        <div class="board" id="board"></div>
+        <h2>Lead directory</h2>
+        <p class="lede">Every company in this batch, with its status on the card. A negative match stays red and does not create a draft.</p>
+        <div class="board" id="leadDirectory"></div>
       </div>
     </section>
 
@@ -978,7 +976,7 @@ const spinner = `<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><circl
 
 const slides = [
   { title: "DESK", text: "Start from an ideal customer profile. The desk shows planning, search, and drafting while the batch is still running." },
-  { title: "PIPELINE", text: "Leads move from Discovered to a Drive briefing, a Gmail draft, and a task only after a person can see why." },
+  { title: "PIPELINE", text: "Each company stays in one directory. A briefing, a Gmail draft, and a task appear only after a person can see why." },
   { title: "WORKSPACE", text: "Sheets, Docs, Drive, and Gmail drafts are the handoff. The pitch stays here until you approve it." }
 ];
 const thumbs = [
@@ -991,7 +989,7 @@ let batchInteractionId = '';
 const tiles = [
   { view: "studio", title: "Research", copy: "Sources, ask, and the batch", icon: "calendar", color: "#188038" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
-  { view: "pipeline", title: "Pipeline", copy: "Discovered through the task", icon: "sparkles", color: "#1a73e8" },
+  { view: "pipeline", title: "Pipeline", copy: "Companies and their status", icon: "sparkles", color: "#1a73e8" },
   { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
   { view: "pains", title: "Pain points", copy: "Sourced problems and misses", icon: "activity", color: "#e37400" },
   { view: "priority", title: "Priority", copy: "High rows and the 48-hour task", icon: "bars", color: "#188038" },
@@ -1001,7 +999,7 @@ const tools = [
   { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
   { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
   { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
-  { sheet: "pipeline", title: "Pipeline", copy: "Stage counts", icon: "bars", color: "#d93025" },
+  { sheet: "pipeline", title: "Pipeline", copy: "Lead directory", icon: "bars", color: "#d93025" },
   { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4" },
   { sheet: "workspace", title: "Lead sheet", copy: "Google Sheets", icon: "sheets" },
   { sheet: "tasks", title: "Tasks", copy: "48-hour follow-up", icon: "tasks", color: "#1a73e8" },
@@ -1161,8 +1159,8 @@ function drawerBody(name) {
     return rows.map((lead) => `<article class="task-card"><b>${escapeHtml(lead.task)}</b><span>${escapeHtml(lead.taskWhy)}</span></article>`).join("") || "<p>No tasks for this batch. A High row creates a task due on the date 48 hours later.</p>";
   }
   if (name === "workspace") {
-    const headers = ["Company", "Domain", "Headquarters", "Priority", "Stage"];
-    const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(stageLabel(lead.stage))}</td></tr>`).join("");
+    const headers = ["Company", "Domain", "Headquarters", "Priority", "Status"];
+    const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(statusTag(lead).label)}</td></tr>`).join("");
     return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
   if (name === "map") {
@@ -1308,13 +1306,14 @@ function paintPhases(active, failed) {
     return `<span class="${cls}">${spin}${label}</span>`;
   }).join("");
 }
-function startRun() {
+function startRun(extra) {
   clearTimeout(timer);
   phase = "plan";
   if (inSheet()) openSheet("run");
   else show("studio");
-  step("plan", "Posting the saved table", "Gemini is not called from this button. Apps Script is the only writer.");
-  postDesk("/api/runs", profileBody())
+  const focus = extra && extra.company ? extra.company : "";
+  step("plan", focus ? "Researching " + focus : "Posting the research run", "The desk uses the Research settings on the server. A draft is created only when you approve.");
+  postDesk("/api/runs", Object.assign(profileBody(), extra || {}))
     .then(async (response) => ({ response, body: await response.json() }))
     .then(({ response, body }) => {
       if (!response.ok || !body.ok || body.synced === false) {
@@ -1324,10 +1323,8 @@ function startRun() {
         return;
       }
       batchInteractionId = body.interactionId || "";
-      leads.forEach((lead) => {
-        lead.interactionId = batchInteractionId;
-        if (lead.priority === "High" && !lead.negative) lead.stage = "task";
-      });
+      if (Array.isArray(body.leads) && body.leads.length) mergeLeads(body.leads);
+      else leads.forEach((lead) => { if (!lead.interactionId) lead.interactionId = batchInteractionId; });
       step("plan", "Apps Script accepted the batch", "High rows have a briefing and a task. A draft is created only when you approve. Nothing was sent.");
       toast("Apps Script accepted the batch. Nothing was sent.");
       reveal("pipeline");
@@ -1379,25 +1376,27 @@ document.getElementById("simTimeout").onclick = () => {
 };
 document.getElementById("simResume").onclick = () => startRun();
 
-function stageLabel(stage) {
-  return { discovered: "Discovered", briefing: "Briefing created", draft: "Draft ready", task: "Action required", archived: "Archived" }[stage] || stage;
+function statusTag(lead) {
+  if (lead.archived) return { cls: "low", label: "Archived" };
+  if (lead.negative) return { cls: "neg", label: "Negative Match" };
+  if (lead.priority === "High") return { cls: "high", label: "High Priority" };
+  return { cls: "low", label: "Sourced" };
 }
 function renderBoard() {
-  const columns = ["discovered", "briefing", "draft", "task"];
-  document.getElementById("board").innerHTML = columns.map((stage) => {
-    const cards = leads.filter((lead) => lead.stage === stage).map((lead) => card(lead)).join("");
-    const titles = { discovered: "Discovered", briefing: "Briefing created (Drive)", draft: "Draft ready (Gmail)", task: "Action required (Tasks)" };
-    return `<section class="col"><h3>${titles[stage]}</h3>${cards || ""}</section>`;
-  }).join("");
+  const directory = document.getElementById("leadDirectory");
+  const visible = leads.filter((lead) => !lead.archived);
+  directory.innerHTML = visible.map((lead) => card(lead)).join("") || `<p class="lede">No companies in this directory.</p>`;
   bindLeadActions();
 }
 function card(lead) {
-  const tag = lead.negative ? "neg" : lead.priority === "High" ? "high" : "low";
-  const label = lead.negative ? "Negative match" : lead.priority;
-  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${escapeHtml(lead.id)}">${escapeHtml(lead.company)}</button><p>${escapeHtml(lead.pain)}</p><span class="tag ${tag}">${escapeHtml(label)}</span><div class="actions">
+  const tag = statusTag(lead);
+  const approve = lead.priority === "High" && !lead.negative
+    ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch</button>`
+    : "";
+  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${escapeHtml(lead.id)}">${escapeHtml(lead.company)}</button><p>${escapeHtml(lead.pain)}</p><span class="tag ${tag.cls}">${escapeHtml(tag.label)}</span><div class="actions">
     <button type="button" data-act="report" data-id="${lead.id}">Open report</button>
     <button type="button" data-act="research" data-id="${lead.id}">Re-research company</button>
-    ${lead.priority === "High" && lead.stage === "task" ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch and clear task</button>` : ""}
+    ${approve}
     <button type="button" data-act="archive" data-id="${lead.id}">Archive lead</button>
   </div></article>`;
 }
@@ -1411,11 +1410,21 @@ function act(name, id) {
   if (!lead) return;
   if (name === "report") { selected = lead; show("lead"); return; }
   if (name === "research") {
-    startRun();
+    const profile = profileBody();
+    startRun({
+      company: lead.company,
+      domain: lead.domain,
+      sellerName: profile.sellerName,
+      offering: profile.offering,
+      icp: profile.icp,
+      industry: profile.industry,
+      region: profile.region,
+      maxLeads: profile.maxLeads
+    });
     return;
   }
   if (name === "archive") {
-    lead.stage = "archived";
+    lead.archived = true;
     toast(lead.company + " archived on this desk. Workspace files were not deleted.");
     renderBoard();
     if (inSheet()) openSheet("pipeline");
@@ -1445,11 +1454,28 @@ function profileBody() {
   return body;
 }
 function deskHeaders() {
-  return { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json" };
+  let token = "";
+  try { token = localStorage.getItem("lead-desk-token") || ""; } catch (error) { token = ""; }
+  if (!token && window.deskToken) token = String(window.deskToken);
+  if (token) headers["X-Desk-Token"] = token;
+  return headers;
+}
+function deskSend(method, url, body, allowPrompt) {
+  return fetch(url, {
+    method: method,
+    headers: deskHeaders(),
+    body: body == null ? undefined : JSON.stringify(body)
+  }).then((response) => {
+    if (response.status !== 401 || !allowPrompt) return response;
+    const token = window.prompt("Enter the desk token");
+    if (!token) return response;
+    try { localStorage.setItem("lead-desk-token", token.trim()); } catch (error) { window.deskToken = token.trim(); }
+    return deskSend(method, url, body, false);
+  });
 }
 function postDesk(url, body) {
-  const send = () => fetch(url, { method: "POST", headers: deskHeaders(), body: JSON.stringify(body) });
-  return send().then((response) => (response.status === 401 ? send() : response));
+  return deskSend("POST", url, body, true);
 }
 function approveLead(lead) {
   const profile = profileBody();
@@ -1465,7 +1491,6 @@ function approveLead(lead) {
         toast(body.error || "The draft was not saved. Nothing was sent.");
         return;
       }
-      lead.stage = "draft";
       toast(body.needsRecipient
         ? "Draft saved in your mailbox because no public email is on file. The pitch is not sent."
         : "Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
@@ -1500,12 +1525,10 @@ document.getElementById("approveDraft").onclick = () => {
     toast("No pitch to approve. A negative match does not create a Gmail draft.");
     return;
   }
-  selected.stage = "draft";
-  toast("Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
-  reveal("pipeline");
+  approveLead(selected);
 };
 document.getElementById("holdDraft").onclick = () => {
-  toast("Draft kept. The task stays on the board.");
+  toast("Draft kept. The follow-up task stays open.");
   reveal("pipeline");
 };
 function renderWorkspace() {
@@ -1599,11 +1622,26 @@ function paintSourceCount() {
   selectAll.checked = sources.length > 0 && saved === sources.length;
   selectAll.indeterminate = saved > 0 && saved < sources.length;
 }
-document.getElementById("sourceList").addEventListener("click", (event) => {
+document.getElementById("sourceList").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-del]");
   if (!button) return;
   const index = sources.findIndex((item) => item.id === button.dataset.del);
-  if (index >= 0) sources.splice(index, 1);
+  if (index < 0) return;
+  const item = sources[index];
+  if (item.serverId) {
+    try {
+      const response = await deskSend("DELETE", "/api/sources/" + encodeURIComponent(item.serverId), null, true);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.ok) {
+        toast(body.error || "The file was not removed.");
+        return;
+      }
+    } catch (error) {
+      toast("The file was not removed.");
+      return;
+    }
+  }
+  sources.splice(index, 1);
   renderSources();
 });
 document.getElementById("addSources").onclick = () => document.getElementById("sourceFiles").click();
@@ -1738,6 +1776,7 @@ document.getElementById("askForm").onsubmit = async (event) => {
     const reply = document.createElement("p");
     reply.textContent = body.explanation || "Gemini returned no explanation.";
     box.append(reply);
+    mergeLeads(body.leads || []);
     paintAskedLeads(body.leads || []);
   } catch (error) {
     const reply = document.createElement("p");
@@ -1746,6 +1785,32 @@ document.getElementById("askForm").onsubmit = async (event) => {
   }
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
+function mergeLeads(rows) {
+  (rows || []).forEach((raw) => {
+    if (!raw || !raw.company) return;
+    const id = raw.id || String(raw.company).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lead";
+    const lead = {
+      id: id,
+      company: raw.company,
+      domain: raw.domain || "",
+      hq: raw.hq || raw.hqAddress || "",
+      pain: raw.pain || raw.painPoint || "No public pain point.",
+      hook: raw.hook || "",
+      priority: raw.priority === "High" ? "High" : "Low",
+      source: raw.source || "",
+      photo: raw.photo || "",
+      negative: raw.negative != null ? raw.negative : !(raw.priority === "High" && raw.hook),
+      interactionId: raw.interactionId || batchInteractionId || "",
+      task: raw.task || "",
+      taskWhy: raw.taskWhy || "",
+      distance: raw.distance || "",
+      coords: raw.coords || ""
+    };
+    const index = leads.findIndex((item) => item.id === lead.id);
+    if (index >= 0) leads[index] = Object.assign({}, leads[index], lead, { archived: leads[index].archived });
+    else leads.push(lead);
+  });
+}
 function paintAskedLeads(rows) {
   const list = document.getElementById("askLeadList");
   if (!rows.length) {

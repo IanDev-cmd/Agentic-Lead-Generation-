@@ -72,6 +72,8 @@ function loadConfig() {
     sellerName: cleanText(process.env.SELLER_NAME, 120),
     icp: cleanText(process.env.IDEAL_CUSTOMER_PROFILE, 500)
       || 'Operating companies with a public signal of the problem this offering addresses',
+    researchCompany: cleanText(process.env.RESEARCH_COMPANY, 200),
+    researchDomain: cleanText(process.env.RESEARCH_DOMAIN, 200),
     maxLeads,
     pollInitialDelayMs: readPositiveNumber('POLL_INITIAL_DELAY_MS', 5000),
     pollMaxDelayMs: readPositiveNumber('POLL_MAX_DELAY_MS', 60000),
@@ -128,6 +130,9 @@ function buildLeadPrompt(config) {
     `Industry: ${config.industry}`,
     `Region: ${config.region}`,
     `Maximum companies: ${config.maxLeads}`,
+    config.researchCompany
+      ? `Focus this run on one company: ${config.researchCompany}${config.researchDomain ? ` (${config.researchDomain})` : ''}. Use public sources about that company.`
+      : '',
     '',
     'Rules:',
     '- Use only information a member of the public could find on the open web.',
@@ -146,6 +151,18 @@ function buildLeadPrompt(config) {
     '## Briefing: {Company}',
     '',
     'Three short paragraphs: what the company does, the sourced pain point, and the specific public hook a salesperson can mention. Do not brief companies that are absent from the table.',
+  ].join('\n');
+}
+
+function cell(value) {
+  return String(value || 'unknown').replace(/\|/g, ' ').replace(/[\r\n]+/g, ' ').trim() || 'unknown';
+}
+
+function focusedDryRun(config) {
+  return [
+    '| Company | Domain | HQ Address | Contact Name | Contact Title | Contact Email | Pain Point | Hook | Priority | Source |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    `| ${cell(config.researchCompany)} | ${cell(config.researchDomain)} | unknown | unknown | unknown | unknown | unknown | unknown | Low | dry-run |`,
   ].join('\n');
 }
 
@@ -329,12 +346,13 @@ async function obtainReport(config) {
 
   if (config.dryRun) {
     console.log('DRY_RUN is set. Gemini will not be called.');
+    const focused = config.researchCompany ? focusedDryRun(config) : FIXTURE_REPORT;
     return {
       interactionId: `dry-run-${Date.now()}`,
       agent: 'dry-run',
       generatedAt: new Date().toISOString(),
-      query: 'dry-run fixture',
-      markdown: FIXTURE_REPORT,
+      query: config.researchCompany ? `dry-run:${config.researchCompany}` : 'dry-run fixture',
+      markdown: focused,
     };
   }
 
