@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
+import { postAppsScript } from './lib/webhook.js';
 import { shouldDelegate } from './lib/route.js';
 
 /**
@@ -361,25 +362,11 @@ async function postWebhook(config, payload) {
 
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     try {
-      const response = await fetch(config.webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Secret': config.webhookSecret,
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(config.requestTimeoutMs),
-      });
-      const raw = await response.text();
-      let body;
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        throw new Error(`Webhook returned non-JSON HTTP ${response.status}: ${raw.slice(0, 240)}`);
-      }
-      if (!response.ok || body.ok === false) {
-        const error = new Error(body.error || `Webhook failed with HTTP ${response.status}`);
-        error.retryable = Boolean(body.retryable) || response.status === 429 || response.status >= 500;
+      const outcome = await postAppsScript(config.webhookUrl, config.webhookSecret, payload, config.requestTimeoutMs);
+      const body = outcome.body || {};
+      if (outcome.status >= 500 || body.ok === false) {
+        const error = new Error(body.error || `Webhook failed with HTTP ${outcome.status}`);
+        error.retryable = Boolean(body.retryable) || outcome.status === 429 || outcome.status >= 500;
         throw error;
       }
       return body;

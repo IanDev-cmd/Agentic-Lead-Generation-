@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { demoLeads } from './lib/leads.js';
 import { businessEnv, deskAuthorized, executeDryRun, redactSecrets } from './lib/desk-run.js';
+import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 
@@ -97,24 +98,7 @@ async function callAppsScript(payload) {
   const missing = missingWebhook('read');
   if (missing) return { status: 424, body: { ok: false, error: missing } };
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Secret': secret,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(120000),
-    });
-    const raw = await response.text();
-    let body;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      return { status: 502, body: { ok: false, error: 'Apps Script returned a non-JSON response.' } };
-    }
-    if (!body.ok) return { status: 409, body };
-    return { status: 200, body };
+    return await postAppsScript(url, secret, payload);
   } catch {
     return { status: 502, body: { ok: false, error: 'The desk could not reach Apps Script.' } };
   }
@@ -126,31 +110,18 @@ async function postApprove(company, interactionId, seller = {}) {
   if (missing) {
     return { status: 424, body: { ok: false, synced: false, sent: false, error: missing } };
   }
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Webhook-Secret': secret,
-    },
-    body: JSON.stringify({
+  try {
+    const outcome = await postAppsScript(url, secret, {
       action: 'approve',
       company,
       interactionId,
       ...(seller.name || seller.offering ? { seller } : {}),
-    }),
-    signal: AbortSignal.timeout(120000),
-  });
-  const raw = await response.text();
-  let body;
-  try {
-    body = JSON.parse(raw);
+    });
+    if (!outcome.body?.ok) return { status: outcome.status, body: { ...outcome.body, sent: false, synced: false } };
+    return { status: 200, body: { ...outcome.body, sent: false, synced: true } };
   } catch {
-    return { status: 502, body: { ok: false, sent: false, error: 'Apps Script returned a non-JSON response. Nothing was sent.' } };
+    return { status: 502, body: { ok: false, sent: false, error: 'The approve call did not reach Apps Script. Nothing was sent.' } };
   }
-  if (!body.ok) {
-    return { status: 409, body: { ...body, sent: false, synced: false } };
-  }
-  return { status: 200, body: { ...body, sent: false, synced: true } };
 }
 
 async function handleApi(request, response, url) {

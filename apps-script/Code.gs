@@ -46,8 +46,8 @@ var HARD_LEAD_CAP = 15;
 function doGet(e) {
   var props = PropertiesService.getScriptProperties();
   var expected = props.getProperty('WEBHOOK_SECRET') || '';
-  if (!expected || !secretsMatch_(providedSecret_(e), expected)) {
-    return json_({ ok: false, error: 'Unauthorized webhook.' });
+  if (!expected || !secretsMatch_(providedSecret_(e), expected.trim())) {
+    return json_({ ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' });
   }
   return json_({
     ok: true,
@@ -90,7 +90,7 @@ function handlePost_(e) {
     return json_({ ok: false, error: 'WEBHOOK_SECRET is not set. Run install(), then set the script property.' });
   }
   if (!secretsMatch_(providedSecret_(e), config.secret)) {
-    return json_({ ok: false, error: 'Unauthorized webhook.' });
+    return json_({ ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' });
   }
 
   var lock = LockService.getScriptLock();
@@ -260,7 +260,7 @@ function readBody_(e) {
 
 function providedSecret_(e) {
   var headers = (e && e.headers) || {};
-  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '');
+  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '').trim();
 }
 
 function secretsMatch_(provided, expected) {
@@ -276,7 +276,7 @@ function getConfig_(payload) {
   var props = PropertiesService.getScriptProperties();
   var seller = payload.seller || {};
   return {
-    secret: props.getProperty('WEBHOOK_SECRET') || '',
+    secret: String(props.getProperty('WEBHOOK_SECRET') || '').trim(),
     sellerName: seller.name || props.getProperty('SELLER_NAME') || '',
     sellerOffering: seller.offering || props.getProperty('SELLER_OFFERING') || '',
     homeBase: props.getProperty('HOME_BASE_ADDRESS') || '',

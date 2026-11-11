@@ -160,3 +160,24 @@ test('the desk API returns leads and rejects a missing token', async () => {
   await new Promise((resolve) => server.close(resolve));
   process.env.DESK_TOKEN = '';
 });
+
+test('an Apps Script redirect keeps the secret on the second POST', async () => {
+  const { createServer } = await import('node:http');
+  const { postAppsScript } = await import('../lib/webhook.js');
+  const server = createServer((request, response) => {
+    if (request.url === '/exec') {
+      response.writeHead(302, { Location: '/done' });
+      response.end();
+      return;
+    }
+    const ok = request.method === 'POST' && request.headers['x-webhook-secret'] === 'abcdefghijklmnop';
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ ok }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
+  assert.equal(result.body.ok, true);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+});
