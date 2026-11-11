@@ -192,7 +192,7 @@ def repair_table(client, settings: Settings, markdown: str) -> str:
 
 
 def finish(settings: Settings, record: dict) -> str:
-    output = settings.root / "output"
+    output = settings.output_dir
     output.mkdir(parents=True, exist_ok=True)
     markdown_path = output / "last-report.md"
     meta_path = output / "last-report.json"
@@ -216,11 +216,21 @@ def finish(settings: Settings, record: dict) -> str:
         raise PipelineError("Report has no lead table. The webhook was not called.")
     if settings.webhook_url and not is_placeholder(settings.webhook_url):
         post_webhook(settings, record)
-    elif settings.webhook_url:
-        log.info("GOOGLE_WEBHOOK_URL is still a placeholder. Webhook skipped.")
     else:
-        log.info("GOOGLE_WEBHOOK_URL is empty. Webhook skipped.")
+        reason = (
+            "GOOGLE_WEBHOOK_URL is still a placeholder. Nothing was written to Sheets."
+            if settings.webhook_url
+            else "GOOGLE_WEBHOOK_URL is empty. Nothing was written to Sheets."
+        )
+        _write_webhook_result(settings, {"ok": False, "synced": False, "error": reason})
+        log.info(reason)
     return str(markdown_path)
+
+
+def _write_webhook_result(settings: Settings, payload: dict) -> None:
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    safe = {key: value for key, value in payload.items() if key != "secret"}
+    (settings.output_dir / "last-webhook.json").write_text(json.dumps(safe, indent=2), encoding="utf-8")
 
 
 def post_webhook(settings: Settings, record: dict) -> None:
@@ -230,7 +240,6 @@ def post_webhook(settings: Settings, record: dict) -> None:
         raise PipelineError("Set WEBHOOK_SECRET to at least 16 characters before posting.")
     body = json.dumps(
         {
-            "secret": settings.webhook_secret,
             "interactionId": record["interactionId"],
             "agent": record["agent"],
             "generatedAt": record["generatedAt"],
@@ -255,6 +264,10 @@ def post_webhook(settings: Settings, record: dict) -> None:
             payload = json.loads(raw)
             if status >= 400 or payload.get("ok") is False:
                 raise PipelineError(str(payload.get("error") or f"Webhook failed with HTTP {status}"))
+            _write_webhook_result(
+                settings,
+                {"ok": True, "synced": True, "interactionId": record["interactionId"], "appsScript": payload},
+            )
             log.info("Webhook accepted the report: %s", json.dumps({k: payload[k] for k in payload if k != "secret"}))
             return
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, PipelineError) as exc:
@@ -265,6 +278,7 @@ def post_webhook(settings: Settings, record: dict) -> None:
             log.warning("Webhook attempt %s failed: %s", attempt, exc)
             time.sleep(delay)
             delay = min(16.0, delay * 2)
+    _write_webhook_result(settings, {"ok": False, "synced": False, "error": f"Webhook failed: {last_error}"})
     raise PipelineError(f"Webhook failed: {last_error}")
 
 

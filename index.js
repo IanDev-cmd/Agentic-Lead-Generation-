@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
+import { shouldDelegate } from './lib/route.js';
 
 /**
  * Local half of the lead pipeline.
@@ -76,7 +78,7 @@ function loadConfig() {
     pollMaxWaitMs: Math.min(60 * 60 * 1000, Math.max(60_000, readPositiveNumber('POLL_MAX_WAIT_MS', 60 * 60 * 1000))),
     pollMaxTransientErrors: Math.round(readPositiveNumber('POLL_MAX_TRANSIENT_ERRORS', 8)),
     requestTimeoutMs: readPositiveNumber('REQUEST_TIMEOUT_MS', 120000),
-    outputDir: path.resolve('output'),
+    outputDir: path.resolve(process.env.LEADGEN_OUTPUT_DIR || 'output'),
   };
 }
 
@@ -394,15 +396,11 @@ async function postWebhook(config, payload) {
   throw lastError;
 }
 
-function envFlag(name) {
-  return /^(1|true|yes)$/i.test(process.env[name] || '');
-}
-
-function shouldDelegate(config) {
-  if (process.env.LEADGEN_ROUTE === 'paid') return false;
-  if (config.reportFile || config.resumeId) return false;
-  if (config.dryRun && !envFlag('DEMO_MODE')) return false;
-  return true;
+function writeWebhookResult(config, payload) {
+  mkdirSync(config.outputDir, { recursive: true });
+  const safe = { ...payload };
+  delete safe.secret;
+  writeFileSync(path.join(config.outputDir, 'last-webhook.json'), JSON.stringify(safe, null, 2));
 }
 
 function delegateToFallback() {
@@ -441,26 +439,35 @@ async function main() {
   assertLeadTable(record.markdown);
 
   if (!config.webhookUrl) {
-    console.log('GOOGLE_WEBHOOK_URL is empty. Webhook skipped.');
+    const skipped = { ok: false, synced: false, error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was written to Sheets.' };
+    writeWebhookResult(config, skipped);
+    console.log(skipped.error);
     return;
   }
 
-  const result = await postWebhook(config, {
-    secret: config.webhookSecret,
-    interactionId: record.interactionId,
-    agent: record.agent,
-    generatedAt: record.generatedAt,
-    query: record.query,
-    seller: { name: config.sellerName, offering: config.offering },
-    markdown: record.markdown,
-  });
-  console.log(JSON.stringify(result, null, 2));
+  try {
+    const result = await postWebhook(config, {
+      interactionId: record.interactionId,
+      agent: record.agent,
+      generatedAt: record.generatedAt,
+      query: record.query,
+      seller: { name: config.sellerName, offering: config.offering },
+      markdown: record.markdown,
+    });
+    writeWebhookResult(config, { ok: true, synced: true, interactionId: record.interactionId, appsScript: result });
+    console.log(JSON.stringify(result, null, 2));
+  } catch (error) {
+    writeWebhookResult(config, { ok: false, synced: false, error: error.message || 'Webhook failed.' });
+    throw error;
+  }
 }
 
-main().catch((error) => {
-  console.error(error?.stack || error?.message || error);
-  if (activeInteractionId) {
-    console.error(`Resume with RESUME_INTERACTION_ID=${activeInteractionId}`);
-  }
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  main().catch((error) => {
+    console.error(error?.stack || error?.message || error);
+    if (activeInteractionId) {
+      console.error(`Resume with RESUME_INTERACTION_ID=${activeInteractionId}`);
+    }
+    process.exit(1);
+  });
+}

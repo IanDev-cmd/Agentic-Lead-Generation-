@@ -737,11 +737,13 @@
           </label>
           <label>Route
             <select id="route" aria-label="Research route">
-              <option value="free">Free Flash</option>
-              <option value="paid">Deep Research</option>
-              <option value="demo">Demo cache</option>
+              <option value="desk" selected>Saved table</option>
             </select>
           </label>
+          <label>Desk token
+            <input id="deskToken" type="password" autocomplete="off" aria-label="Desk token" placeholder="Only when the server requires one">
+          </label>
+          <p class="meta">This button posts the saved table to Apps Script. It does not call Gemini, and it does not send mail.</p>
         </details>
       </aside>
       <section class="panel doc" aria-label="Lead sheet">
@@ -781,8 +783,8 @@
     <section class="view page" id="view-run" hidden>
       <p class="wordmark" id="runTitle">Research</p>
       <div class="quote-card" role="status">
-        <h2 id="runHeading">Planning the search</h2>
-        <p class="lede" id="runLede">The batch stays on this desk until Sheets confirms the rows.</p>
+        <h2 id="runHeading">Posting the saved table</h2>
+        <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
         <div class="phases" id="phases" aria-label="Research phase"></div>
         <div class="actions">
           <button type="button" class="primary" id="runResearch">Run research</button>
@@ -977,10 +979,8 @@ const thumbs = [
   { label: "PIPELINE", color: "#0d6b32" },
   { label: "WORKSPACE", color: "#174ea6" }
 ];
-const leads = [
-  { id: "northwind", company: "Northwind Analytics", domain: "northwind.example", hq: "San Francisco, CA", distance: "Local group", coords: "37.79, -122.39", priority: "High", pain: "Job posts describe account research as a full-day manual task.", hook: "A RevOps role opened this month.", source: "https://example.com/northwind", photo: "northwind.jpg", stage: "discovered", negative: false, task: "Review pitch deck for Northwind Analytics", taskWhy: "High priority. The task is due on the calendar date 48 hours after the batch, because Google Tasks stores a date." },
-  { id: "contoso", company: "Contoso Fabrication", domain: "contoso.example", hq: "Chicago, IL", distance: "Midwest", coords: "41.88, -87.64", priority: "Low", pain: "No public pain point.", hook: "", source: "https://example.com/contoso", photo: "contoso.jpg", stage: "discovered", negative: true, task: "", taskWhy: "Negative match. No draft, briefing, or task was created." }
-];
+let leads = [];
+let batchInteractionId = '';
 const tiles = [
   { view: "studio", title: "Upload", copy: "Pick files from the desktop", icon: "upload", color: "#1a73e8" },
   { view: "run", title: "Research", copy: "Planning, search, and drafts", icon: "calendar", color: "#188038", start: true },
@@ -1027,7 +1027,7 @@ let savedOnly = false;
 let slide = 0;
 let timer = null;
 let phase = "idle";
-let selected = leads[0];
+let selected = null;
 const phases = [
   ["plan", "Planning"],
   ["search", "Searching"],
@@ -1302,17 +1302,29 @@ function startRun() {
   phase = "plan";
   if (inSheet()) openSheet("run");
   else show("run");
-  const profile = document.getElementById("icp").value;
-  step("plan", "Planning the search", "Flash is splitting the profile into three public search queries. " + profile);
-  timer = setTimeout(() => {
-    phase = "search";
-    step("search", "Searching public sources", "Google Search grounding is running. This desk does not open social sites.");
-    timer = setTimeout(() => {
-      phase = "draft";
-      step("draft", "Drafting the briefing", "The markdown table and the High-priority briefing are being written.");
-      timer = setTimeout(() => finishRun(), 1200);
-    }, 1200);
-  }, 900);
+  step("plan", "Posting the saved table", "Gemini is not called from this button. Apps Script is the only writer.");
+  fetch("/api/runs", { method: "POST", headers: deskHeaders() })
+    .then(async (response) => ({ response, body: await response.json() }))
+    .then(({ response, body }) => {
+      if (!response.ok || !body.ok || body.synced === false) {
+        const message = body.error || "Apps Script did not accept the batch. Nothing was written to Sheets.";
+        step("plan", "The batch was not written", message);
+        toast(message);
+        return;
+      }
+      batchInteractionId = body.interactionId || "";
+      leads.forEach((lead) => {
+        lead.interactionId = batchInteractionId;
+        if (lead.priority === "High" && !lead.negative) lead.stage = "task";
+      });
+      step("plan", "Apps Script accepted the batch", "High rows have a briefing and a task. A draft is created only when you approve. Nothing was sent.");
+      toast("Apps Script accepted the batch. Nothing was sent.");
+      reveal("pipeline");
+    })
+    .catch((error) => {
+      step("plan", "The desk could not reach the API", error.message);
+      toast("The desk could not reach the API. Nothing was written to Sheets.");
+    });
 }
 function syncResearchDrawer() {
   if (!inSheet()) return;
@@ -1331,13 +1343,7 @@ function step(id, heading, lede) {
   syncResearchDrawer();
 }
 function finishRun() {
-  phase = "sync";
-  paintPhases("sync");
-  document.getElementById("runHeading").textContent = "Sheets sync complete";
-  document.getElementById("runLede").textContent = "Two rows are on the pipeline. Northwind is High. Contoso is a negative match.";
-  leads.forEach((lead) => { if (lead.priority === "High") lead.stage = "task"; });
-  toast("Batch synced to Google Sheets. Northwind briefing is ready for review.");
-  reveal("pipeline");
+  startRun();
 }
 document.getElementById("runResearch").onclick = () => startRun();
 document.getElementById("simLimit").onclick = () => {
@@ -1377,7 +1383,7 @@ function renderBoard() {
 function card(lead) {
   const tag = lead.negative ? "neg" : lead.priority === "High" ? "high" : "low";
   const label = lead.negative ? "Negative match" : lead.priority;
-  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${lead.id}">${lead.company}</button><p>${lead.pain}</p><span class="tag ${tag}">${label}</span><div class="actions">
+  return `<article class="lead"><button type="button" class="lead-name" data-lead="1" data-id="${escapeHtml(lead.id)}">${escapeHtml(lead.company)}</button><p>${escapeHtml(lead.pain)}</p><span class="tag ${tag}">${escapeHtml(label)}</span><div class="actions">
     <button type="button" data-act="report" data-id="${lead.id}">Open report</button>
     <button type="button" data-act="research" data-id="${lead.id}">Re-research company</button>
     ${lead.priority === "High" && lead.stage === "task" ? `<button type="button" class="primary" data-act="approve" data-id="${lead.id}">Approve pitch and clear task</button>` : ""}
@@ -1394,33 +1400,59 @@ function act(name, id) {
   if (!lead) return;
   if (name === "report") { selected = lead; show("lead"); return; }
   if (name === "research") {
-    toast("Re-research queued for " + lead.company + ". The previous row stays until the new batch syncs.");
     startRun();
     return;
   }
   if (name === "archive") {
     lead.stage = "archived";
-    toast(lead.company + " archived. Workspace files were not deleted.");
+    toast(lead.company + " archived on this desk. Workspace files were not deleted.");
     renderBoard();
     if (inSheet()) openSheet("pipeline");
     return;
   }
   if (name === "approve") {
     selected = lead;
-    lead.stage = "draft";
-    toast("Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
-    reveal("draft");
+    approveLead(lead);
   }
+}
+function deskHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const token = document.getElementById("deskToken");
+  if (token && token.value.trim()) headers["X-Desk-Token"] = token.value.trim();
+  return headers;
+}
+function approveLead(lead) {
+  fetch("/api/leads/" + encodeURIComponent(lead.id) + "/approve", {
+    method: "POST",
+    headers: deskHeaders(),
+    body: JSON.stringify({ company: lead.company, interactionId: lead.interactionId || batchInteractionId || "" })
+  })
+    .then(async (response) => ({ response, body: await response.json() }))
+    .then(({ response, body }) => {
+      if (!response.ok || !body.ok || body.sent) {
+        toast(body.error || "The draft was not saved. Nothing was sent.");
+        return;
+      }
+      lead.stage = "draft";
+      toast(body.needsRecipient
+        ? "Draft saved in your mailbox because no public email is on file. The pitch is not sent."
+        : "Draft saved in Gmail. The follow-up task is cleared. The pitch is not sent.");
+      reveal("draft");
+    })
+    .catch(() => toast("The desk could not reach the API. Nothing was sent."));
 }
 function renderReport() {
   const lead = selected;
+  if (!lead) return;
   document.getElementById("reportCompany").textContent = lead.company;
-  document.getElementById("reportBody").innerHTML = `<h3>${lead.company}</h3><p>${lead.pain}</p><p>${lead.hook || "No public hook. A draft is not created."}</p><p>Priority: ${lead.priority}. Headquarters: ${lead.hq}.</p>`;
+  document.getElementById("reportBody").innerHTML = `<h3>${escapeHtml(lead.company)}</h3><p>${escapeHtml(lead.pain)}</p><p>${escapeHtml(lead.hook || "No public hook. A draft is not created.")}</p><p>Priority: ${escapeHtml(lead.priority)}. Headquarters: ${escapeHtml(lead.hq)}.</p>`;
   const mix = lead.negative ? [["Careers", 10], ["News", 20], ["No fit", 70]] : [["Careers", 55], ["News", 30], ["Site", 15]];
   document.getElementById("bars").innerHTML = mix.map(([label, value]) =>
     `<div class="bar"><span>${label}</span><i style="width:${value}%"></i><span>${value}</span></div>`
   ).join("");
-  document.getElementById("cites").innerHTML = `<li><a href="${lead.source}">${lead.source}</a></li>`;
+  document.getElementById("cites").innerHTML = safeUrl(lead.source)
+    ? `<li><a href="${safeUrl(lead.source)}">${escapeHtml(lead.source)}</a></li>`
+    : `<li>${escapeHtml(lead.source || "No public source.")}</li>`;
 }
 document.getElementById("openDraft").onclick = () => reveal("draft");
 function renderDraft() {
@@ -1454,24 +1486,24 @@ function renderWorkspace() {
       id: lead.id,
       icon: "sheets"
     })),
-    { name: "Briefing - Northwind Analytics", meta: "Doc · 2026-11-11 09:24", view: "report", id: "northwind", icon: "docs" },
-    { name: "Draft - Northwind Analytics", meta: "Gmail · not sent", view: "draft", id: "northwind", icon: "gmail" }
+    { name: "Briefing - " + ((leads.find((lead) => !lead.negative) || {}).company || "Account"), meta: "Doc · after Apps Script accepts the batch", view: "report", id: (leads.find((lead) => !lead.negative) || {}).id, icon: "docs" },
+    { name: "Draft - " + ((leads.find((lead) => !lead.negative) || {}).company || "Account"), meta: "Gmail · not sent", view: "draft", id: (leads.find((lead) => !lead.negative) || {}).id, icon: "gmail" }
   ];
   document.getElementById("fileCards").innerHTML = rows.map((row) =>
-    `<button class="file-card" type="button" data-view="${row.view}"${row.id ? ` data-id="${row.id}"` : ""}><span class="file-ico">${icon(row.icon)}</span><span><b>${row.name}</b><small>${row.meta}</small></span></button>`
+    `<button class="file-card" type="button" data-view="${escapeHtml(row.view)}"${row.id ? ` data-id="${escapeHtml(row.id)}"` : ""}><span class="file-ico">${icon(row.icon)}</span><span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(row.meta)}</small></span></button>`
   ).join("");
 }
 function renderAccounts() {
-  document.getElementById("accountRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.domain}</td><td>${lead.hq}</td><td>${lead.distance}</td></tr>`).join("");
+  document.getElementById("accountRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.distance)}</td></tr>`).join("");
 }
 function renderPains() {
-  document.getElementById("painList").innerHTML = leads.map((lead) => `<article class="lead"><strong>${lead.company}</strong><p>${lead.pain}</p><span class="tag ${lead.negative ? "neg" : "high"}">${lead.negative ? "Negative match" : "Sourced"}</span></article>`).join("");
+  document.getElementById("painList").innerHTML = leads.map((lead) => `<article class="lead"><strong>${escapeHtml(lead.company)}</strong><p>${escapeHtml(lead.pain)}</p><span class="tag ${lead.negative ? "neg" : "high"}">${lead.negative ? "Negative match" : "Sourced"}</span></article>`).join("");
 }
 function renderPriority() {
-  document.getElementById("priorityRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.priority}</td><td>${lead.priority === "High" ? "Briefing, calendar link, and task" : "Sheet row only"}</td></tr>`).join("");
+  document.getElementById("priorityRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.priority)}</td><td>${lead.priority === "High" ? "Briefing, calendar link, and task" : "Sheet row only"}</td></tr>`).join("");
 }
 function renderMap() {
-  document.getElementById("mapRows").innerHTML = leads.map((lead) => `<tr><td>${lead.company}</td><td>${lead.distance}</td><td>${lead.coords}</td></tr>`).join("");
+  document.getElementById("mapRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.distance)}</td><td>${escapeHtml(lead.coords || lead.hq)}</td></tr>`).join("");
 }
 
 function visibleSources() {
@@ -1493,6 +1525,16 @@ function renderSources() {
 }
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch]));
+}
+function safeUrl(value) {
+  try {
+    const url = new URL(String(value || ""), "http://127.0.0.1");
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    if (!/^https?:/i.test(String(value || ""))) return "";
+    return escapeHtml(url.href);
+  } catch {
+    return "";
+  }
 }
 function paintSourceCount() {
   const saved = sources.filter((item) => item.saved).length;
@@ -1534,6 +1576,7 @@ document.getElementById("copySources").onclick = async () => {
 };
 function renderLead() {
   const lead = selected;
+  if (!lead) return;
   document.getElementById("leadHeadline").textContent = lead.pain;
   document.getElementById("leadContext").textContent = [
     lead.hook || "No public hook. A draft is not created.",
@@ -1549,8 +1592,10 @@ function renderLead() {
   document.getElementById("contactEmail").textContent = "No public email is on file.";
   document.getElementById("contactPriority").textContent = lead.negative ? "Low. Sheet row only." : "High. Briefing, calendar link, and a task due on the date 48 hours later.";
   const source = document.getElementById("contactSource");
-  source.href = lead.source;
-  source.textContent = lead.source;
+  const href = safeUrl(lead.source);
+  if (href) source.href = lead.source;
+  else source.removeAttribute("href");
+  source.textContent = lead.source || "No public source.";
 }
 function scrollToContact() {
   document.getElementById("leadContact").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -1580,12 +1625,22 @@ document.getElementById("askForm").onsubmit = (event) => {
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
 paintPhases("idle");
-const requested = new URLSearchParams(location.search).get("view");
-if (requested && document.getElementById("view-" + requested)) {
-  gate.hidden = true;
-  document.getElementById("desk").hidden = false;
-  show(requested);
+async function loadDesk() {
+  const response = await fetch("/api/leads");
+  if (!response.ok) throw new Error("The lead list was refused.");
+  const body = await response.json();
+  leads = Array.isArray(body.leads) ? body.leads : [];
+  selected = leads[0] || null;
+  const requested = new URLSearchParams(location.search).get("view");
+  if (requested && document.getElementById("view-" + requested)) {
+    gate.hidden = true;
+    document.getElementById("desk").hidden = false;
+    show(requested);
+    return;
+  }
+  if (!document.getElementById("view-studio").hidden) paintView("studio");
 }
+loadDesk().catch(() => toast("The lead list did not load. Nothing was written to Sheets."));
 </script>
 </body>
 </html>

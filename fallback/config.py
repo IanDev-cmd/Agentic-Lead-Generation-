@@ -55,6 +55,7 @@ class Settings:
     max_leads: int
     grounding_calls_per_run: int
     request_timeout_seconds: int
+    output_dir: Path
 
     @property
     def key_usable(self) -> bool:
@@ -94,4 +95,5 @@ class Settings:
             max_leads=min(15, max(1, max_leads)),
             grounding_calls_per_run=min(8, max(3, per_run)),
             request_timeout_seconds=min(180, max(15, timeout)),
+            output_dir=Path(os.environ.get("LEADGEN_OUTPUT_DIR") or (root / "output")),
         )

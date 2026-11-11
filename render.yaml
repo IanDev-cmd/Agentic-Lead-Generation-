@@ -1,56 +1,58 @@
 # Render Blueprint.
-# The lead desk is a static page. The research job is a one-shot CLI, not a server.
-# Do not set a Web Service start command to `node index.js`: Render would restart
-# it after every exit and could repeat a paid Gemini run.
-# The cron stays on DRY_RUN until GEMINI_API_KEY, GOOGLE_WEBHOOK_URL, and
-# WEBHOOK_SECRET are set in the Render dashboard. A live free-tier run also needs
-# Python 3.11+ on PATH; the Node runtime does not include it.
+# The web service stays up and serves the desk plus /api.
+# The cron is the one-shot research command. It is not a restarted web process.
+# DRY_RUN stays true until you set a real key and webhook in the dashboard.
+# The desk button posts the saved table and does not call Gemini.
 
 services:
   - type: web
     name: lead-desk
-    runtime: static
-    buildCommand: echo "Publishing web/ with no compile step"
-    staticPublishPath: web
-    pullRequestPreviewsEnabled: false
-    headers:
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: Referrer-Policy
-        value: no-referrer
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-
-  - type: cron
-    name: lead-research
-    runtime: node
-    schedule: "0 6 * * 1"
-    buildCommand: npm ci
-    startCommand: node index.js
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node server.js
+    healthCheckPath: /api/health
+    numInstances: 1
     envVars:
-      - key: NODE_VERSION
-        value: "22"
+      - key: PORT
+        value: "10000"
       - key: DRY_RUN
         value: "true"
       - key: BILLING_ENABLED
         value: "false"
       - key: DEMO_MODE
         value: "false"
-      - key: FORCE_FREE_TIER
-        value: "false"
-      - key: VERIFY_BILLING
+      - key: DESK_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_WEBHOOK_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: SELLER_NAME
+        sync: false
+      - key: SELLER_OFFERING
+        sync: false
+      - key: TARGET_INDUSTRY
+        sync: false
+      - key: TARGET_REGION
+        sync: false
+      - key: IDEAL_CUSTOMER_PROFILE
+        sync: false
+
+  - type: cron
+    name: lead-research
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node index.js
+    schedule: "0 6 * * 1"
+    envVars:
+      - key: DRY_RUN
         value: "true"
-      - key: FREE_MODEL
-        value: gemini-2.5-flash
-      - key: FREE_GROUNDING_CALLS_PER_RUN
-        value: "5"
-      - key: MAX_LEADS
-        value: "8"
-      - key: DEEP_RESEARCH_AGENT
-        value: deep-research-preview-04-2026
+      - key: BILLING_ENABLED
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
       - key: GEMINI_API_KEY
         sync: false
       - key: GOOGLE_WEBHOOK_URL

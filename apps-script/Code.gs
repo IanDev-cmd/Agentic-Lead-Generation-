@@ -43,12 +43,15 @@ var LEAD_HEADERS = [
 var RUN_HEADERS = ['Interaction ID', 'Processed At', 'Lead Count', 'Report URL', 'Status'];
 var HARD_LEAD_CAP = 15;
 
-function doGet() {
+function doGet(e) {
   var props = PropertiesService.getScriptProperties();
+  var expected = props.getProperty('WEBHOOK_SECRET') || '';
+  if (!expected || !secretsMatch_(providedSecret_(e), expected)) {
+    return json_({ ok: false, error: 'Unauthorized webhook.' });
+  }
   return json_({
     ok: true,
     service: 'lead-generation-webhook',
-    secretConfigured: Boolean(props.getProperty('WEBHOOK_SECRET')),
     spreadsheetConfigured: Boolean(props.getProperty('SPREADSHEET_ID')),
     folderConfigured: Boolean(props.getProperty('BRIEFINGS_FOLDER_ID'))
   });
@@ -58,9 +61,10 @@ function doPost(e) {
   try {
     return handlePost_(e);
   } catch (err) {
+    Logger.log(err);
     return json_({
       ok: false,
-      error: String(err && err.message ? err.message : err)
+      error: 'The webhook failed before the batch was saved.'
     });
   }
 }
@@ -85,17 +89,8 @@ function handlePost_(e) {
   if (!config.secret) {
     return json_({ ok: false, error: 'WEBHOOK_SECRET is not set. Run install(), then set the script property.' });
   }
-  if (!secretsMatch_(providedSecret_(e, body), config.secret)) {
+  if (!secretsMatch_(providedSecret_(e), config.secret)) {
     return json_({ ok: false, error: 'Unauthorized webhook.' });
-  }
-
-  var markdown = String(body.markdown || '');
-  if (!markdown || markdown.length > 500000) {
-    return json_({ ok: false, error: 'Markdown payload is missing or larger than 500000 characters.' });
-  }
-  var interactionId = String(body.interactionId || '').trim();
-  if (!interactionId) {
-    return json_({ ok: false, error: 'interactionId is required.' });
   }
 
   var lock = LockService.getScriptLock();
@@ -104,7 +99,20 @@ function handlePost_(e) {
   }
 
   try {
-    var props = PropertiesService.getScriptProperties();
+    if (String(body.action || '') === 'approve') {
+      return approveLead_(body, config);
+    }
+
+    var markdown = String(body.markdown || '');
+  if (!markdown || markdown.length > 500000) {
+    return json_({ ok: false, error: 'Markdown payload is missing or larger than 500000 characters.' });
+  }
+  var interactionId = String(body.interactionId || '').trim();
+  if (!interactionId) {
+    return json_({ ok: false, error: 'interactionId is required.' });
+  }
+
+  var props = PropertiesService.getScriptProperties();
     var spreadsheet = getOrCreateSpreadsheet_(props);
     var folder = getOrCreateFolder_(props);
     var leadsSheet = ensureSheet_(spreadsheet, 'Leads', LEAD_HEADERS);
@@ -141,7 +149,14 @@ function handlePost_(e) {
       errors: []
     };
 
-    leads.forEach(function (lead) {
+    var started = Date.now();
+    for (var i = 0; i < leads.length; i += 1) {
+      if (Date.now() - started > 4.5 * 60 * 1000) {
+        summary.truncated = true;
+        summary.errors.push({ company: '', notes: ['Stopped before the Apps Script time limit. Retry this delivery.'] });
+        break;
+      }
+      var lead = leads[i];
       var outcome = processLead_(lead, {
         body: body,
         config: config,
@@ -161,7 +176,7 @@ function handlePost_(e) {
       if (outcome.notes.length) {
         summary.errors.push({ company: lead.company, notes: outcome.notes });
       }
-    });
+    }
 
     recordRun_(runsSheet, interactionId, summary.leadsWritten, reportUrl, 'complete');
     return json_(summary);
@@ -221,21 +236,9 @@ function processLead_(lead, ctx) {
     } catch (err) {
       notes.push('Task: ' + (err.message || err));
     }
-  }
-
-  if (lead.hook) {
-    try {
-      var draft = createOutreachDraft_(lead, {
-        name: ctx.config.sellerName,
-        offering: ctx.config.sellerOffering
-      });
-      blank.draftId = draft.id;
-      if (draft.needsRecipient) notes.push('No public email. Draft was addressed to you so it cannot be sent to a guessed recipient.');
-    } catch (err) {
-      notes.push('Draft: ' + (err.message || err));
-    }
+    notes.push('Draft is not created until the pitch is approved. Nothing is sent from this desk.');
   } else {
-    notes.push('No public hook, so no outreach draft was created.');
+    notes.push('Negative match. No briefing, task, or draft was created.');
   }
 
   appendLead_(ctx.sheet, lead, ctx.body, blank);
@@ -252,9 +255,9 @@ function readBody_(e) {
   }
 }
 
-function providedSecret_(e, body) {
+function providedSecret_(e) {
   var headers = (e && e.headers) || {};
-  return String(body.secret || headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '');
+  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '');
 }
 
 function secretsMatch_(provided, expected) {
@@ -271,8 +274,8 @@ function getConfig_(payload) {
   var seller = payload.seller || {};
   return {
     secret: props.getProperty('WEBHOOK_SECRET') || '',
-    sellerName: seller.name || props.getProperty('SELLER_NAME') || '',
-    sellerOffering: seller.offering || props.getProperty('SELLER_OFFERING') || '',
+    sellerName: props.getProperty('SELLER_NAME') || seller.name || '',
+    sellerOffering: props.getProperty('SELLER_OFFERING') || seller.offering || '',
     homeBase: props.getProperty('HOME_BASE_ADDRESS') || '',
     lookaheadDays: clamp_(Number(props.getProperty('CALENDAR_LOOKAHEAD_DAYS') || 30), 1, 90),
     maxLeads: clamp_(Number(props.getProperty('MAX_LEADS') || 8), 1, HARD_LEAD_CAP),
@@ -572,30 +575,36 @@ function addField_(body, label, value) {
 
 function attachBriefingToCalendar_(lead, docUrl, lookaheadDays) {
   var calendar = CalendarApp.getDefaultCalendar();
-  var now = new Date();
-  var until = new Date(now.getTime() + lookaheadDays * 24 * 60 * 60 * 1000);
-  var events = calendar.getEvents(now, until).slice(0, 500);
+  var cursor = new Date();
+  var end = new Date(cursor.getTime() + lookaheadDays * 24 * 60 * 60 * 1000);
   var updated = [];
   var matched = 0;
   var failures = 0;
+  var examined = 0;
 
-  events.forEach(function (event) {
-    if (updated.length >= 5) return;
-    if (!eventMatches_(event, lead.domain, lead.company)) return;
-    matched += 1;
-    try {
-      var description = event.getDescription() || '';
-      if (description.indexOf(docUrl) !== -1) return;
-      event.setDescription(description + '\n\nLead briefing (' + lead.company + '): ' + docUrl);
-      updated.push(event.getId());
-    } catch (err) {
-      failures += 1;
+  while (cursor < end && updated.length < 5 && examined < 500) {
+    var chunkEnd = new Date(Math.min(end.getTime(), cursor.getTime() + 7 * 24 * 60 * 60 * 1000));
+    var events = calendar.getEvents(cursor, chunkEnd);
+    for (var i = 0; i < events.length && updated.length < 5 && examined < 500; i += 1) {
+      examined += 1;
+      var event = events[i];
+      if (!eventMatches_(event, lead.domain, lead.company)) continue;
+      matched += 1;
+      try {
+        var description = event.getDescription() || '';
+        if (description.indexOf(docUrl) !== -1) continue;
+        event.setDescription(description + '\n\nLead briefing (' + lead.company + '): ' + docUrl);
+        updated.push(event.getId());
+      } catch (err) {
+        failures += 1;
+      }
     }
-  });
+    cursor = chunkEnd;
+  }
 
   var note = '';
   if (failures) note = 'Could not edit ' + failures + ' matching calendar event(s). They may be owned by someone else.';
-  if (events.length === 500) note = (note ? note + ' ' : '') + 'Calendar scan stopped at 500 events.';
+  if (examined === 500) note = (note ? note + ' ' : '') + 'Calendar scan stopped at 500 events.';
   if (!note && matched > updated.length) note = 'Matched ' + matched + ' events and attached the briefing to the first ' + updated.length + '.';
   return { updated: updated, note: note };
 }
@@ -623,14 +632,28 @@ function createOutreachDraft_(lead, seller) {
     subject = '[Needs recipient] ' + subject;
   }
 
-  var existing = GmailApp.search('in:drafts subject:"' + subject.replace(/"/g, '') + '"', 0, 5);
-  if (existing.length) {
-    var messages = existing[0].getMessages();
-    if (messages.length) return { id: messages[0].getId(), needsRecipient: needsRecipient };
-  }
+  var existingId = findDraftBySubject_(subject);
+  if (existingId) return { id: existingId, needsRecipient: needsRecipient };
 
   var draft = GmailApp.createDraft(recipient, subject, buildDraftBody_(lead, seller));
   return { id: draft.getId(), needsRecipient: needsRecipient };
+}
+
+function findDraftBySubject_(subject) {
+  var start = 0;
+  while (start < 500) {
+    var threads = GmailApp.search('in:drafts newer_than:30d', start, 50);
+    if (!threads.length) return '';
+    for (var i = 0; i < threads.length; i += 1) {
+      var messages = threads[i].getMessages();
+      for (var m = 0; m < messages.length; m += 1) {
+        if (messages[m].getSubject() === subject) return messages[m].getId();
+      }
+    }
+    if (threads.length < 50) return '';
+    start += 50;
+  }
+  return '';
 }
 
 function buildSubject_(lead) {
@@ -663,11 +686,8 @@ function createFollowUpTask_(lead, briefingUrl, tasklist) {
     throw new Error('Tasks advanced service is not enabled. In the Apps Script editor, open Services and add the Tasks API.');
   }
   var title = 'Review pitch deck for ' + lead.company;
-  var existing = Tasks.Tasks.list(tasklist, { showCompleted: false, maxResults: 100 });
-  var items = (existing && existing.items) || [];
-  for (var i = 0; i < items.length; i += 1) {
-    if (items[i].title === title) return { id: items[i].id, due: items[i].due || '' };
-  }
+  var existing = findOpenTask_(tasklist, title);
+  if (existing) return { id: existing.id, due: existing.due || '' };
 
   var dueAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
   var timeZone = Session.getScriptTimeZone() || 'Etc/GMT-3';
@@ -685,6 +705,82 @@ function createFollowUpTask_(lead, briefingUrl, tasklist) {
     ].filter(Boolean).join('\n')
   }, tasklist);
   return { id: created.id, due: due };
+}
+
+function findOpenTask_(tasklist, title) {
+  var token = '';
+  var seen = 0;
+  while (seen < 1000) {
+    var options = { showCompleted: false, maxResults: 100 };
+    if (token) options.pageToken = token;
+    var page = Tasks.Tasks.list(tasklist, options);
+    var items = (page && page.items) || [];
+    for (var i = 0; i < items.length; i += 1) {
+      seen += 1;
+      if (items[i].title === title) return items[i];
+    }
+    token = page && page.nextPageToken;
+    if (!token || !items.length) return null;
+  }
+  return null;
+}
+
+function findLeadRow_(sheet, interactionId, company) {
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i += 1) {
+    if (String(values[i][1]) === interactionId && String(values[i][2]) === company) return i + 1;
+  }
+  return 0;
+}
+
+function approveLead_(body, config) {
+  var company = cleanField_(body.company);
+  var interactionId = String(body.interactionId || '').trim();
+  if (!company || !interactionId) {
+    return json_({ ok: false, sent: false, error: 'company and interactionId are required. Nothing was saved in Gmail.' });
+  }
+  var props = PropertiesService.getScriptProperties();
+  var sheet = ensureSheet_(getOrCreateSpreadsheet_(props), 'Leads', LEAD_HEADERS);
+  var row = findLeadRow_(sheet, interactionId, company);
+  if (!row) {
+    return json_({ ok: false, sent: false, error: 'That lead is not on the sheet yet. Nothing was saved in Gmail.' });
+  }
+  var values = sheet.getRange(row, 1, 1, LEAD_HEADERS.length).getValues()[0];
+  var hook = cleanField_(values[12]);
+  var priority = cleanField_(values[13]);
+  if (!hook || priority.toLowerCase().indexOf('high') !== 0) {
+    return json_({ ok: false, sent: false, error: 'A negative match does not create a draft. Nothing was sent.' });
+  }
+  var existingDraft = cleanField_(values[16]);
+  if (existingDraft) {
+    return json_({ ok: true, sent: false, duplicate: true, draftId: existingDraft, taskCleared: false });
+  }
+  var lead = {
+    company: company,
+    email: cleanField_(values[10]),
+    contactName: cleanField_(values[8]),
+    painPoint: cleanField_(values[11]),
+    hook: hook
+  };
+  var draft = createOutreachDraft_(lead, { name: config.sellerName, offering: config.sellerOffering });
+  sheet.getRange(row, 17).setValue(asCell_(draft.id));
+  var taskId = cleanField_(values[18]);
+  var taskCleared = false;
+  if (taskId && typeof Tasks !== 'undefined' && Tasks.Tasks) {
+    try {
+      Tasks.Tasks.patch({ status: 'completed' }, config.tasklist, taskId);
+      taskCleared = true;
+    } catch (err) {
+      Logger.log(err);
+    }
+  }
+  return json_({
+    ok: true,
+    sent: false,
+    draftId: draft.id,
+    taskCleared: taskCleared,
+    needsRecipient: Boolean(draft.needsRecipient)
+  });
 }
 
 function geocodeAddress_(address) {
