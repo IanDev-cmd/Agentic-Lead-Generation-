@@ -1,7 +1,6 @@
-# Render Blueprint.
-# Blueprint sync shows an empty box for every sync: false key. Paste those.
-# The valued keys are already filled. Leave PORT unset so Render assigns it.
+# Web service. Leave PORT unset so Render assigns it.
 # DRY_RUN stays true until you choose a live Gemini run.
+# Keys with sync: false are empty on the Render form. Paste those.
 
 services:
   - type: web
@@ -49,60 +48,6 @@ services:
       - key: WEBHOOK_SECRET
         sync: false
       - key: DESK_TOKEN
-        sync: false
-      - key: SELLER_NAME
-        sync: false
-      - key: SELLER_OFFERING
-        sync: false
-      - key: TARGET_INDUSTRY
-        sync: false
-      - key: TARGET_REGION
-        sync: false
-      - key: IDEAL_CUSTOMER_PROFILE
-        sync: false
-
-  - type: cron
-    name: lead-research
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerCommand: node index.js
-    schedule: "0 6 * * 1"
-    envVars:
-      - key: DRY_RUN
-        value: "true"
-      - key: BILLING_ENABLED
-        value: "false"
-      - key: DEMO_MODE
-        value: "false"
-      - key: FORCE_FREE_TIER
-        value: "false"
-      - key: VERIFY_BILLING
-        value: "true"
-      - key: DEEP_RESEARCH_AGENT
-        value: deep-research-preview-04-2026
-      - key: MAX_LEADS
-        value: "8"
-      - key: FREE_MODEL
-        value: gemini-2.5-flash
-      - key: FREE_GROUNDING_CALLS_PER_RUN
-        value: "5"
-      - key: POLL_INITIAL_DELAY_MS
-        value: "5000"
-      - key: POLL_MAX_DELAY_MS
-        value: "60000"
-      - key: POLL_BACKOFF_FACTOR
-        value: "1.5"
-      - key: POLL_MAX_WAIT_MS
-        value: "3600000"
-      - key: POLL_MAX_TRANSIENT_ERRORS
-        value: "8"
-      - key: REQUEST_TIMEOUT_MS
-        value: "120000"
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: GOOGLE_WEBHOOK_URL
-        sync: false
-      - key: WEBHOOK_SECRET
         sync: false
       - key: SELLER_NAME
         sync: false
