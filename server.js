@@ -83,11 +83,19 @@ function webhookConfig() {
   return { url, secret };
 }
 
+function missingWebhook(action) {
+  const { url, secret } = webhookConfig();
+  const tail = action === 'save' ? 'Nothing was saved in Gmail.' : 'Nothing was read from Google.';
+  if (!url && !secret) return `GOOGLE_WEBHOOK_URL and WEBHOOK_SECRET are empty. ${tail}`;
+  if (!url) return `GOOGLE_WEBHOOK_URL is empty. ${tail}`;
+  if (!secret) return `WEBHOOK_SECRET is empty. Paste the same string you saved in Apps Script. ${tail}`;
+  return '';
+}
+
 async function callAppsScript(payload) {
   const { url, secret } = webhookConfig();
-  if (!url || !secret) {
-    return { status: 424, body: { ok: false, error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was read from Google.' } };
-  }
+  const missing = missingWebhook('read');
+  if (missing) return { status: 424, body: { ok: false, error: missing } };
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -114,16 +122,9 @@ async function callAppsScript(payload) {
 
 async function postApprove(company, interactionId, seller = {}) {
   const { url, secret } = webhookConfig();
-  if (!url || !secret) {
-    return {
-      status: 424,
-      body: {
-        ok: false,
-        synced: false,
-        sent: false,
-        error: 'GOOGLE_WEBHOOK_URL is empty. Nothing was saved in Gmail.',
-      },
-    };
+  const missing = missingWebhook('save');
+  if (missing) {
+    return { status: 424, body: { ok: false, synced: false, sent: false, error: missing } };
   }
   const response = await fetch(url, {
     method: 'POST',
