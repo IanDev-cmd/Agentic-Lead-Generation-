@@ -727,9 +727,11 @@
         <input id="pdf" type="file" accept="application/pdf,.pdf" hidden>
         <details class="batch">
           <summary>Batch profile</summary>
-          <label>Profile <input id="icp" value="Independent logistics operators in the United States with public evidence of manual dispatch"></label>
-          <label>Industry <input id="industry" value="Logistics"></label>
-          <label>Region <input id="region" value="United States"></label>
+          <label>Business <input id="sellerName" placeholder="The company running this search" autocomplete="organization"></label>
+          <label>Offering <input id="offering" placeholder="What that company sells"></label>
+          <label>Profile <input id="icp" placeholder="Who they want to reach"></label>
+          <label>Industry <input id="industry" placeholder="Industry to search"></label>
+          <label>Region <input id="region" placeholder="Where those buyers operate"></label>
           <label>Max leads
             <select id="maxLeads" aria-label="Maximum leads">
               <option>4</option><option selected>8</option><option>15</option>
@@ -740,10 +742,7 @@
               <option value="desk" selected>Saved table</option>
             </select>
           </label>
-          <label>Desk token
-            <input id="deskToken" type="password" autocomplete="off" aria-label="Desk token" placeholder="Only when the server requires one">
-          </label>
-          <p class="meta">This button posts the saved table to Apps Script. It does not call Gemini, and it does not send mail.</p>
+          <p class="meta">This profile is saved in this browser and sent with the run. It is not a server setting. The button posts the saved table to Apps Script. It does not call Gemini, and it does not send mail.</p>
         </details>
       </aside>
       <section class="panel doc" aria-label="Lead sheet">
@@ -1303,7 +1302,7 @@ function startRun() {
   if (inSheet()) openSheet("run");
   else show("run");
   step("plan", "Posting the saved table", "Gemini is not called from this button. Apps Script is the only writer.");
-  fetch("/api/runs", { method: "POST", headers: deskHeaders() })
+  postDesk("/api/runs", profileBody())
     .then(async (response) => ({ response, body: await response.json() }))
     .then(({ response, body }) => {
       if (!response.ok || !body.ok || body.synced === false) {
@@ -1415,17 +1414,38 @@ function act(name, id) {
     approveLead(lead);
   }
 }
+const profileFields = ["sellerName", "offering", "icp", "industry", "region", "maxLeads"];
+function readProfile() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem("lead-desk-profile") || "{}"); } catch { saved = {}; }
+  profileFields.forEach((id) => {
+    const field = document.getElementById(id);
+    if (field && saved[id]) field.value = saved[id];
+  });
+}
+function profileBody() {
+  const body = {};
+  profileFields.forEach((id) => {
+    const field = document.getElementById(id);
+    body[id] = field ? field.value.trim() : "";
+  });
+  localStorage.setItem("lead-desk-profile", JSON.stringify(body));
+  return body;
+}
 function deskHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  const token = document.getElementById("deskToken");
-  if (token && token.value.trim()) headers["X-Desk-Token"] = token.value.trim();
-  return headers;
+  return { "Content-Type": "application/json" };
+}
+function postDesk(url, body) {
+  const send = () => fetch(url, { method: "POST", headers: deskHeaders(), body: JSON.stringify(body) });
+  return send().then((response) => (response.status === 401 ? send() : response));
 }
 function approveLead(lead) {
-  fetch("/api/leads/" + encodeURIComponent(lead.id) + "/approve", {
-    method: "POST",
-    headers: deskHeaders(),
-    body: JSON.stringify({ company: lead.company, interactionId: lead.interactionId || batchInteractionId || "" })
+  const profile = profileBody();
+  postDesk("/api/leads/" + encodeURIComponent(lead.id) + "/approve", {
+      company: lead.company,
+      interactionId: lead.interactionId || batchInteractionId || "",
+      sellerName: profile.sellerName,
+      offering: profile.offering
   })
     .then(async (response) => ({ response, body: await response.json() }))
     .then(({ response, body }) => {
@@ -1625,6 +1645,7 @@ document.getElementById("askForm").onsubmit = (event) => {
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
 paintPhases("idle");
+readProfile();
 async function loadDesk() {
   const response = await fetch("/api/leads");
   if (!response.ok) throw new Error("The lead list was refused.");

@@ -274,8 +274,8 @@ function getConfig_(payload) {
   var seller = payload.seller || {};
   return {
     secret: props.getProperty('WEBHOOK_SECRET') || '',
-    sellerName: props.getProperty('SELLER_NAME') || seller.name || '',
-    sellerOffering: props.getProperty('SELLER_OFFERING') || seller.offering || '',
+    sellerName: seller.name || props.getProperty('SELLER_NAME') || '',
+    sellerOffering: seller.offering || props.getProperty('SELLER_OFFERING') || '',
     homeBase: props.getProperty('HOME_BASE_ADDRESS') || '',
     lookaheadDays: clamp_(Number(props.getProperty('CALENDAR_LOOKAHEAD_DAYS') || 30), 1, 90),
     maxLeads: clamp_(Number(props.getProperty('MAX_LEADS') || 8), 1, HARD_LEAD_CAP),

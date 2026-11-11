@@ -47,15 +47,3 @@ services:
         sync: false
       - key: WEBHOOK_SECRET
         sync: false
-      - key: DESK_TOKEN
-        sync: false
-      - key: SELLER_NAME
-        sync: false
-      - key: SELLER_OFFERING
-        sync: false
-      - key: TARGET_INDUSTRY
-        sync: false
-      - key: TARGET_REGION
-        sync: false
-      - key: IDEAL_CUSTOMER_PROFILE
-        sync: false

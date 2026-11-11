@@ -6,7 +6,7 @@ import test from 'node:test';
 import { asCell, secretsMatch } from '../lib/safety.js';
 import { shouldDelegate } from '../lib/route.js';
 import { demoLeads } from '../lib/leads.js';
-import { deskAuthorized, executeDryRun } from '../lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeDryRun } from '../lib/desk-run.js';
 
 process.env.GOOGLE_WEBHOOK_URL = '';
 process.env.WEBHOOK_SECRET = '';
@@ -42,6 +42,25 @@ test('demo leads do not invent an email address', () => {
   assert.equal(leads[0].negative, false);
   assert.equal(leads[1].negative, true);
   assert.equal(JSON.stringify(leads).includes('@'), false);
+});
+
+test('a business profile is the env for that run', () => {
+  assert.deepEqual(businessEnv({
+    sellerName: 'Northwind',
+    offering: 'Dispatch software',
+    industry: 'Logistics',
+    region: 'Kenya',
+    icp: 'Operators',
+    maxLeads: '8',
+  }), {
+    SELLER_NAME: 'Northwind',
+    SELLER_OFFERING: 'Dispatch software',
+    TARGET_INDUSTRY: 'Logistics',
+    TARGET_REGION: 'Kenya',
+    IDEAL_CUSTOMER_PROFILE: 'Operators',
+    MAX_LEADS: '8',
+  });
+  assert.deepEqual(businessEnv({ sellerName: '   ', maxLeads: '99' }), {});
 });
 
 test('production refuses writes until a desk token is set', () => {

@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { demoLeads } from './lib/leads.js';
-import { deskAuthorized, executeDryRun } from './lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeDryRun } from './lib/desk-run.js';
 
 const root = process.cwd();
 const webRoot = path.resolve(root, 'web');
@@ -22,6 +22,31 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8',
 };
 
+let mintedDeskToken = '';
+
+function expectedDeskToken() {
+  const configured = (process.env.DESK_TOKEN || '').trim();
+  if (configured) return configured;
+  if (!mintedDeskToken) mintedDeskToken = randomBytes(24).toString('hex');
+  return mintedDeskToken;
+}
+
+function cookieToken(request) {
+  const raw = request.headers.cookie || '';
+  const match = String(raw).match(/(?:^|;\s*)desk=([^;]+)/);
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return '';
+  }
+}
+
+function deskCookie() {
+  const secure = process.env.RENDER === 'true' ? '; Secure' : '';
+  return `desk=${encodeURIComponent(expectedDeskToken())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${secure}`;
+}
+
 function send(response, status, payload, type = 'application/json; charset=utf-8') {
   const body = Buffer.isBuffer(payload)
     ? payload
@@ -31,6 +56,7 @@ function send(response, status, payload, type = 'application/json; charset=utf-8
     'Content-Length': body.length,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
+    'Set-Cookie': deskCookie(),
   });
   response.end(body);
 }
@@ -55,7 +81,7 @@ function webhookConfig() {
   return { url, secret };
 }
 
-async function postApprove(company, interactionId) {
+async function postApprove(company, interactionId, seller = {}) {
   const { url, secret } = webhookConfig();
   if (!url || !secret) {
     return {
@@ -74,7 +100,12 @@ async function postApprove(company, interactionId) {
       'Content-Type': 'application/json',
       'X-Webhook-Secret': secret,
     },
-    body: JSON.stringify({ action: 'approve', company, interactionId }),
+    body: JSON.stringify({
+      action: 'approve',
+      company,
+      interactionId,
+      ...(seller.name || seller.offering ? { seller } : {}),
+    }),
     signal: AbortSignal.timeout(120000),
   });
   const raw = await response.text();
@@ -109,15 +140,11 @@ async function handleApi(request, response, url) {
     send(response, 200, record);
     return;
   }
-  const token = request.headers['x-desk-token'];
+  const headerToken = request.headers['x-desk-token'];
+  const presented = (Array.isArray(headerToken) ? headerToken[0] : headerToken) || cookieToken(request);
   const production = process.env.RENDER === 'true';
-  if (!deskAuthorized(Array.isArray(token) ? token[0] : token, (process.env.DESK_TOKEN || '').trim(), production)) {
-    send(response, 401, {
-      ok: false,
-      error: production && !(process.env.DESK_TOKEN || '').trim()
-        ? 'Set DESK_TOKEN before the desk can write. Nothing was sent.'
-        : 'Desk token was rejected.',
-    });
+  if (!deskAuthorized(presented, expectedDeskToken(), production)) {
+    send(response, 401, { ok: false, error: 'Desk token was rejected.' });
     return;
   }
   if (limited()) {
@@ -125,9 +152,16 @@ async function handleApi(request, response, url) {
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/runs') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, synced: false, error: 'Run body was not JSON. Nothing was written to Sheets.' });
+      return;
+    }
     const id = randomUUID();
     const outputDir = path.join(root, 'output', 'runs', id);
-    const run = await executeDryRun(outputDir);
+    const run = await executeDryRun(outputDir, { ...process.env, ...businessEnv(body) });
     const result = run.result || {
       ok: false,
       synced: false,
@@ -170,7 +204,11 @@ async function handleApi(request, response, url) {
       return;
     }
     try {
-      const outcome = await postApprove(lead.company, interactionId);
+      const profile = businessEnv(body);
+      const outcome = await postApprove(lead.company, interactionId, {
+        name: profile.SELLER_NAME || '',
+        offering: profile.SELLER_OFFERING || '',
+      });
       send(response, outcome.status, outcome.body);
     } catch {
       send(response, 502, { ok: false, sent: false, error: 'The approve call did not reach Apps Script. Nothing was sent.' });

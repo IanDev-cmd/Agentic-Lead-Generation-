@@ -55,9 +55,9 @@ Closed in this change:
 - Lead fields rendered into HTML go through `escapeHtml`. Links use `http` or `https` only.
 - `test/health.test.js` covers the secret compare, formula prefix, route choice, empty webhook, and the 401 response.
 - The Docker image installs Node 22 and Python 3. `fallback/requirements.txt` pins `google-genai`.
-- Script properties win over seller text in the POST body.
+- A seller name sent with the run is used for that draft. Script properties are the fallback.
 - Caught Apps Script exceptions are logged and returned as a fixed sentence.
-- On Render, writes are refused until `DESK_TOKEN` is set. The token is typed into the desk and is not the webhook secret.
+- On Render, an empty `DESK_TOKEN` is minted at startup and stored in an HttpOnly cookie. It is not the webhook secret.
 
 ### Optimization
 
@@ -67,4 +67,4 @@ The desk page is still one HTML file. The route, safety, and lead rules it depen
 
 ## Actionable recommendations
 
-No open remediation. Before a live Gemini run, set `DRY_RUN=false` only on the cron, keep `BILLING_ENABLED` as an explicit opt-in, and set `DESK_TOKEN` on the web service.
+No open remediation. Before a live Gemini run, set `DRY_RUN=false` and keep `BILLING_ENABLED` as an explicit opt-in. The business profile is sent from the desk with that run.
