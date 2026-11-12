@@ -8,8 +8,8 @@ test('enter opens research, with leads, territory, and analytics', () => {
   assert.match(page, /id="view-accounts"/);
   assert.match(page, /id="view-map"/);
   assert.match(page, /id="view-analytics"/);
-  assert.match(page, /const inAppSheets = new Set\(\["map"\]\)/);
-  assert.match(page, /inAppSheets\.has\(sheetButton\.dataset\.sheet\)\) openSheet/);
+  assert.match(page, /sheetButton\.closest\("#toolGrid"\)\) \{\s*openSheet\(sheetButton\.dataset\.sheet\);/);
+  assert.match(page, /id="view-strategy"/);
   assert.match(page, /class="territory"/);
   assert.match(page, /Territory\.destroy\(\)/);
   assert.match(page, /is-wide/);

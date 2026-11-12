@@ -251,6 +251,87 @@
     font-size: clamp(40px, 5vw, 64px); letter-spacing: -0.03em; line-height: 1; text-align: center;
     color: #fff; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
   }
+  .home-pills { display: flex; justify-content: center; gap: 10px; margin: -12px 0 22px; }
+  .home-pill {
+    border: 0; border-radius: 999px; background: #fff; color: #202124;
+    min-height: 44px; padding: 0 18px; font-weight: 700; font-size: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  }
+  .strategy-view {
+    position: fixed; inset: 0; z-index: 12; overflow: auto; background: #141618; color: #fff;
+    padding: 0 24px 48px;
+  }
+  .strategy-view.is-paper { background: #f6f7f9; color: #3c4043; }
+  .strategy-switch { display: flex; justify-content: center; gap: 8px; padding: 92px 0 18px; }
+  .strategy-switch button, .pipe-range button, .notes-toggle {
+    border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); background: transparent; color: inherit;
+    min-height: 36px; padding: 0 16px; font-weight: 700; font-size: 13px;
+  }
+  .strategy-view.is-paper .strategy-switch button { border-color: #dadce0; }
+  .strategy-switch button.on, .pipe-range button.on { background: #fff; color: #202124; border-color: #fff; }
+  .strategy-view.is-paper .strategy-switch button.on { background: #202124; color: #fff; border-color: #202124; }
+  .strategy-pane { width: min(920px, 100%); margin: 0 auto; }
+  .strategy-pane[hidden] { display: none !important; }
+  .pipe-card { background: #1c1f24; border-radius: 28px; padding: 28px 28px 22px; }
+  .pipe-head { display: grid; grid-template-columns: auto auto 1fr; gap: 28px; align-items: end; }
+  .pipe-head b { display: block; font-family: Outfit, sans-serif; font-size: 42px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
+  .pipe-head small { display: block; margin-top: 6px; color: #9aa0a6; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+  .pipe-head em { font-style: normal; color: #8ab4f8; letter-spacing: 0; font-weight: 650; }
+  .pipe-range { justify-self: end; display: flex; gap: 8px; }
+  .pipe-range button { border-color: #5f6368; color: #e8eaed; }
+  .pipe-range button.on { background: transparent; color: #8ab4f8; border-color: #8ab4f8; }
+  .pipe-plot { position: relative; margin-top: 18px; }
+  .pipe-plot svg { width: 100%; height: auto; display: block; }
+  .plot-line { stroke: #8ab4f8; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .plot-line.is-prior { stroke: #9aa0a6; stroke-dasharray: 2 6; stroke-width: 1.6; }
+  .pipe-legend { position: absolute; right: 0; top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .pipe-legend span { border: 1px solid #5f6368; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #9aa0a6; }
+  .pipe-legend span.on { color: #8ab4f8; border-color: #8ab4f8; }
+  .pipe-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #9aa0a6; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+  .notes-toggle { margin-top: 16px; }
+  .strategy-view.is-paper .notes-toggle { border-color: #dadce0; color: #202124; background: #fff; }
+  .strategy-notes { max-width: 62ch; margin: 12px 0 0; font-size: 14px; line-height: 1.5; }
+  .strategy-notes[hidden] { display: none !important; }
+  .strategy-pane h2 { margin: 8px 0 28px; text-align: center; font-family: Outfit, sans-serif; font-weight: 500; font-size: 32px; color: #5f6368; }
+  .motion { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: start; }
+  .motion-step { text-align: center; position: relative; }
+  .motion-ico { width: 46px; height: 46px; margin: 0 auto 14px; color: #80868b; }
+  .motion-step.is-done .motion-ico, .motion-step.is-now .motion-ico { color: #5f6368; }
+  .motion-step.is-now .motion-ico { color: #1e8e3e; }
+  .motion-track { height: 22px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .motion-track::before { content: ""; position: absolute; left: -8%; right: -8%; height: 3px; background: #dadce0; }
+  .motion-step:first-child .motion-track::before { left: 50%; }
+  .motion-step:last-child .motion-track::before { right: 50%; }
+  .motion-step.is-done .motion-track::before, .motion-step.is-now .motion-track::before { background: #5f6368; }
+  .motion-step.is-now .motion-track::before { background: linear-gradient(90deg, #5f6368, #1e8e3e); }
+  .motion-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #dadce0; }
+  .motion-step.is-done .motion-dot { background: #5f6368; border-color: #5f6368; }
+  .motion-step.is-now .motion-dot { background: #1e8e3e; border-color: #1e8e3e; box-shadow: 0 0 0 6px rgba(30, 142, 62, 0.16); animation: gem-breathe 1.6s ease-in-out infinite; }
+  .motion-step small { display: block; margin-top: 8px; font-size: 13px; font-weight: 650; color: #80868b; }
+  .motion-step.is-now small { color: #1e8e3e; }
+  .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line { stroke-dasharray: 80; stroke-dashoffset: 80; animation: ico-draw 1s ease forwards; }
+  @keyframes ico-draw { to { stroke-dashoffset: 0; } }
+  .night-card { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 28px; align-items: center; background: #3c4048; color: #fff; border-radius: 22px; padding: 28px; }
+  .night-card h2 { color: #fff; text-align: left; font-size: 18px; margin: 0 0 18px; }
+  .motion.is-night .motion-ico { color: rgba(255,255,255,0.72); }
+  .motion.is-night .motion-step.is-now .motion-ico { color: #34d399; }
+  .motion.is-night .motion-track::before { background: rgba(255,255,255,0.28); }
+  .motion.is-night .motion-step.is-done .motion-track::before { background: #fff; }
+  .motion.is-night .motion-dot { background: transparent; border-color: rgba(255,255,255,0.45); }
+  .motion.is-night .motion-step.is-done .motion-dot { background: #fff; border-color: #fff; }
+  .motion.is-night .motion-step.is-now .motion-dot { background: #34d399; border-color: #34d399; }
+  .motion.is-night small { color: rgba(255,255,255,0.72); }
+  .motion.is-night .motion-step.is-now small { color: #34d399; }
+  .night-side { display: flex; flex-direction: column; gap: 12px; }
+  .night-side .notes-toggle, .strategy-view.is-paper .night-side .notes-toggle { margin: 0; background: #1e8e3e; color: #fff; border: 0; min-height: 44px; }
+  .night-side .strategy-notes { color: rgba(255,255,255,0.88); }
+  @media (max-width: 800px) {
+    .pipe-head, .night-card, .motion { grid-template-columns: 1fr; }
+    .pipe-range { justify-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line, .motion-step.is-now .motion-dot { animation: none; stroke-dashoffset: 0; }
+  }
   .grid {
     width: min(1040px, 100%);
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
@@ -268,6 +349,7 @@
 
   .view { width: min(1100px, 100%); margin: 0 auto; }
   .view[hidden] { display: none !important; }
+  #view-strategy { width: 100%; margin: 0; }
   #view-home[hidden] { display: none !important; }
   .page {
     padding: 88px 24px 40px;
@@ -353,15 +435,16 @@
   .panel.doc { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
   .doc-main { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 28px 28px 8px; }
   .think-stage {
-    position: absolute; left: 0; right: 0; top: 112px; bottom: 0; z-index: 2;
-    display: flex; align-items: center; justify-content: center; pointer-events: none;
+    position: absolute; left: 50%; top: 46%; z-index: 2; width: min(168px, 34%);
+    aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none;
   }
-  .think-stage[hidden] { display: none !important; }
-  .think-orb { position: relative; width: min(520px, 88%); aspect-ratio: 1; }
+  .think-stage[hidden], body:not(.is-thinking) .think-stage { display: none !important; }
+  .think-orb { position: relative; width: 100%; height: 100%; }
   .think-orb canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .think-line {
-    position: absolute; left: 20px; right: 20px; bottom: 8px; margin: 0;
-    text-align: center; color: #3c4043; font-size: 15px; font-weight: 550; letter-spacing: -0.01em;
+    position: absolute; left: 50%; top: calc(100% + 16px); width: 280px; margin: 0;
+    transform: translateX(-50%); text-align: center; color: #3c4043;
+    font-size: 15px; font-weight: 550; letter-spacing: -0.01em;
   }
   .doc-text p { margin: 16px 0 0; color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 62ch; }
   .src-line { display: flex; align-items: center; gap: 8px; }
@@ -431,15 +514,15 @@
   }
   .query-pip svg { width: 12px; height: 12px; }
   .query-pip.is-fly { animation: bombard .55s ease-out; }
-  @property --gem-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
   .gem-glow::before {
     content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px;
-    background: conic-gradient(from var(--gem-angle), #4285F4, #EA4335, #F9AB00, #FBBC05, #34A853, #4285F4);
+    background: conic-gradient(#4285F4, #EA4335, #F9AB00, #FBBC05, #34A853, #4285F4);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; opacity: 0; pointer-events: none;
+    -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude; opacity: 0; pointer-events: none;
   }
   body.is-thinking .gem-glow::before { opacity: 1; animation: gem-spin 2.4s linear infinite, gem-breathe 1.6s ease-in-out infinite; }
-  @keyframes gem-spin { to { --gem-angle: 360deg; } }
+  @keyframes gem-spin { to { transform: rotate(1turn); } }
   @keyframes gem-breathe { 50% { filter: drop-shadow(0 0 8px rgba(66, 133, 244, 0.55)); } }
   @keyframes bombard { from { transform: translateX(72px) scale(.35) rotate(-18deg); opacity: 0; } to { transform: none; opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
@@ -566,7 +649,10 @@
   }
   .desk.is-lead .home-link,
   .desk.is-lead .top .icon-btn,
-  .desk.is-lead .top .settings-btn { color: #202124; text-shadow: none; }
+  .desk.is-lead .top .settings-btn,
+  .desk.is-strategy.is-paper .home-link,
+  .desk.is-strategy.is-paper .top .icon-btn,
+  .desk.is-strategy.is-paper .top .settings-btn { color: #202124; text-shadow: none; }
 
   #view-lead {
     position: fixed;
@@ -952,12 +1038,16 @@
     <button type="button" data-view="studio">Research</button>
     <button type="button" data-view="accounts">Leads</button>
     <button type="button" data-view="analytics">Analytics</button>
+    <button type="button" data-view="strategy">Strategy</button>
     <button type="button" data-view="map">Territory</button>
     <button type="button" data-view="workspace">Workspace</button>
   </nav>
   <main id="main">
     <section class="view" id="view-home" hidden>
       <h1 class="wordmark" id="homeTitle" tabindex="-1">Lead desk</h1>
+      <div class="home-pills">
+        <button type="button" class="home-pill" data-view="strategy">Strategy</button>
+      </div>
       <div class="grid" id="homeGrid"></div>
     </section>
 
@@ -1067,6 +1157,56 @@
     </section>
 
     <section class="view radar-view" id="view-analytics" hidden></section>
+    <section class="view strategy-view" id="view-strategy" hidden>
+      <div class="strategy-switch" role="tablist" aria-label="Strategy pages">
+        <button type="button" class="on" data-pane="pipeline" role="tab" aria-selected="true">Pipeline</button>
+        <button type="button" data-pane="motion" role="tab" aria-selected="false">Motion</button>
+        <button type="button" data-pane="night" role="tab" aria-selected="false">Night</button>
+      </div>
+      <div class="strategy-pane" id="pane-pipeline">
+        <article class="pipe-card">
+          <header class="pipe-head">
+            <div><b id="pipeLeads">0</b><small>LEADS</small></div>
+            <div><b id="pipeMatch">0</b><small>MATCH <em id="pipeDelta">this run</em></small></div>
+            <div class="pipe-range" role="group" aria-label="Chart window">
+              <button type="button" class="on" data-window="batch">Batch</button>
+              <button type="button" data-window="week">Week</button>
+              <button type="button" data-window="all">All</button>
+            </div>
+          </header>
+          <div class="pipe-plot">
+            <svg id="pipeChart" viewBox="0 0 640 220" role="img" aria-label="Lead match across this batch">
+              <path id="pipeArea" fill="url(#pipeFill)" d=""></path>
+              <path id="pipePrior" class="plot-line is-prior" fill="none" d=""></path>
+              <path id="pipeNow" class="plot-line" fill="none" d=""></path>
+              <defs><linearGradient id="pipeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ab4f8" stop-opacity="0.35"/><stop offset="1" stop-color="#8ab4f8" stop-opacity="0"/></linearGradient></defs>
+            </svg>
+            <div class="pipe-legend"><span class="on" id="pipeNowLabel">This batch</span><span id="pipePriorLabel">Prior</span></div>
+          </div>
+          <div class="pipe-axis" id="pipeAxis"></div>
+          <button type="button" class="notes-toggle" data-notes="pipeline">Notes</button>
+          <p class="strategy-notes" id="notes-pipeline" hidden>The solid line is the match score of each company in the window. The dotted line is the previous batch, drawn only when one exists. Batch, Week, and All change which leads are on the chart. Nothing here is a revenue figure.</p>
+        </article>
+      </div>
+      <div class="strategy-pane" id="pane-motion" hidden>
+        <h2>Go to market</h2>
+        <div class="motion" id="motionLight"></div>
+        <button type="button" class="notes-toggle" data-notes="motion">Notes</button>
+        <p class="strategy-notes" id="notes-motion" hidden>Research finds the company. Qualify keeps a lead only when a public signal matches the offer. Pitch is the slide deck for that company. Contract is the follow-up task, still unsent. Won is a closed conversation, and this desk does not mark it.</p>
+      </div>
+      <div class="strategy-pane" id="pane-night" hidden>
+        <article class="night-card">
+          <div class="night-copy">
+            <h2>Go to market</h2>
+            <div class="motion is-night" id="motionNight"></div>
+          </div>
+          <form class="night-side" id="nightNotesForm">
+            <button type="submit" class="notes-toggle on">Read the motion</button>
+            <p class="strategy-notes" id="notes-night" hidden>Same five steps, for a dark review. The glowing step is the one this batch is in. Notes stay on the page. Nothing is emailed.</p>
+          </form>
+        </article>
+      </div>
+    </section>
 
     <section class="view page" id="view-report" hidden>
       <div class="quote-card">
@@ -1258,6 +1398,7 @@ const menuItems = [
   ["accounts", "Leads"],
   ["workspace", "Google Workspace"],
   ["analytics", "Analytics"],
+  ["strategy", "Strategy"],
   ["map", "Territory"],
   ["draft", "Gmail draft"]
 ];
@@ -1267,6 +1408,7 @@ const dotViews = [
   ["accounts", "Leads"],
   ["workspace", "Google Workspace"],
   ["analytics", "Analytics"],
+  ["strategy", "Strategy"],
   ["map", "Territory"]
 ];
 let sourceSeq = 1;
@@ -1395,7 +1537,7 @@ function drawerBody(name) {
   }
   if (name === "draft") return mailBody();
   if (name === "slides") {
-    return leads.map((lead, index) => `<article class="slide-card"><b>${index + 1}. ${escapeHtml(lead.company)}</b><span>${escapeHtml(lead.pain)}</span><span>${escapeHtml(lead.hook || "No public hook. A slide is not created.")}</span></article>`).join("");
+    return leads.map(pitchDeck).join("") || "<p>No lead is on the desk yet. A pitch deck is built only from a company already in this batch.</p>";
   }
   if (name === "tasks") {
     const rows = leads.filter((lead) => lead.task);
@@ -1407,11 +1549,41 @@ function drawerBody(name) {
     return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
   if (name === "report") {
-    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p><p>${escapeHtml(lead.hook || "No public hook. A briefing is not created.")}</p></article>`).join("");
+    return leads.map(marketDoc).join("") || "<p>No lead is on the desk yet. A go-to-market note is written only for a company already in this batch.</p>";
   }
   if (name === "pipeline") return leads.map((lead) => card(lead)).join("");
   if (name === "map") return '<div class="territory"></div>';
   return "<p>No preview is on the desk yet.</p>";
+}
+function pitchDeck(lead) {
+  const profile = profileBody();
+  const seller = profile.sellerName || "The seller saved with this run";
+  const offer = profile.offering || "the offer saved with this run";
+  const slides = [
+    ["Cover", lead.company, [lead.hq || "Headquarters not on file", lead.domain || "No domain on file"].join(" · ")],
+    ["Why this company", lead.hook || "No public hook is on file. This slide stays blank rather than inventing a reason."],
+    ["What they are dealing with", lead.pain || "No public pain is on file."],
+    ["The offer", seller + " brings " + offer + ". The slide uses only the signals already stored on this lead."],
+    ["Observed signals", (lead.signals || []).join(". ") || "No extra signals are on file."],
+    ["Sources", (lead.sources || []).concat(lead.source || []).filter(Boolean).join(" · ") || "No public source is on file."],
+    ["The ask", "One short meeting to test the hook. This deck is a draft. Nothing is sent from this desk."]
+  ];
+  return `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)} pitch</b></p>` + slides.map((slide, index) => `<p><b>${index + 1}. ${escapeHtml(slide[0])}</b><br>${escapeHtml(slide[1])}${slide[2] ? "<br>" + escapeHtml(slide[2]) : ""}</p>`).join("") + "</article>";
+}
+function marketDoc(lead) {
+  const profile = profileBody();
+  const seller = profile.sellerName || "The seller saved with this run";
+  const offer = profile.offering || "the offer saved with this run";
+  const buyer = profile.icp || "the buyer saved with this run";
+  const sections = [
+    ["Account", [lead.company, lead.hq || "Headquarters not on file", lead.domain || "No domain on file", lead.priority ? lead.priority + " priority" : ""].filter(Boolean).join(" · ")],
+    ["Buyer", buyer + ". The note does not add a persona that is not already saved."],
+    ["Message", (lead.hook || "No public hook is on file.") + " Offer: " + offer + "."],
+    ["Motion", "Research this account, qualify it against the saved profile, then build the pitch from the hook. The follow-up task is " + (lead.task || "not created for a low match") + "."],
+    ["Proof", (lead.signals || []).concat(lead.sources || []).concat(lead.source || []).filter(Boolean).join(" · ") || "No public proof is on file."],
+    ["Owner", seller + ". The draft stays here until someone approves it. Nothing is sent from this desk."]
+  ];
+  return `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)} go-to-market</b></p>` + sections.map((section) => `<p><b>${escapeHtml(section[0])}</b><br>${escapeHtml(section[1])}</p>`).join("") + "</article>";
 }
 function mailBody() {
   const lead = selected;
@@ -1424,7 +1596,6 @@ function mailBody() {
 function researchBody(heading, lede) {
   return `<p><b>${escapeHtml(heading)}</b></p><p>${escapeHtml(lede)}</p><div class="actions"><button type="button" data-sim="runResearch">Run research</button><button type="button" data-sim="simLimit">Show rate limit</button><button type="button" data-sim="simTimeout">Show timeout</button><button type="button" data-sim="simResume">Resume batch</button></div>`;
 }
-const inAppSheets = new Set(["map"]);
 function closeSheet() {
   if (window.Territory) window.Territory.destroy();
   const drawer = document.getElementById("studioDrawer");
@@ -1439,7 +1610,7 @@ function openSheet(name) {
   document.getElementById("studioDrawerTitle").textContent = pair[1];
   document.getElementById("studioDrawerBody").innerHTML = drawerBody(name);
   bindLeadActions();
-  drawer.classList.toggle("is-wide", name === "map");
+  drawer.classList.toggle("is-wide", name === "map" || name === "slides" || name === "report");
   drawer.setAttribute("aria-hidden", "false");
   drawer.classList.remove("is-open");
   void drawer.offsetWidth;
@@ -1473,6 +1644,7 @@ function paintView(name) {
   if (name === "map") renderMap();
   if (name === "workspace") renderWorkspace();
   if (name === "studio") renderSources();
+  if (name === "strategy") renderStrategy();
   if (name === "report") renderReport();
   if (name === "draft") renderDraft();
   if (name === "lead") renderLead();
@@ -1487,6 +1659,8 @@ function show(name) {
   const desk = document.getElementById("desk");
   desk.classList.toggle("is-home", name === "home");
   desk.classList.toggle("is-lead", name === "lead");
+  desk.classList.toggle("is-strategy", name === "strategy");
+  if (name !== "strategy") desk.classList.remove("is-paper");
   const homeLink = document.querySelector(".home-link");
   if (name === "home") homeLink.setAttribute("aria-current", "page");
   else homeLink.removeAttribute("aria-current");
@@ -1533,8 +1707,7 @@ document.body.addEventListener("click", (event) => {
   }
   const sheetButton = event.target.closest("[data-sheet]");
   if (sheetButton && sheetButton.closest("#toolGrid")) {
-    if (inAppSheets.has(sheetButton.dataset.sheet)) openSheet(sheetButton.dataset.sheet);
-    else openGoogleApp(sheetButton.dataset.sheet);
+    openSheet(sheetButton.dataset.sheet);
     return;
   }
   if (sheetButton && !sheetButton.closest("#gate")) {
@@ -2368,6 +2541,115 @@ async function loadDesk() {
   }
   if (!document.getElementById("view-studio").hidden) paintView("studio");
 }
+const motionIcons = [
+  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="22" cy="22" r="10"/><path d="M30 30l8 8"/></svg>',
+  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 18l14-8 14 8v16H10z"/><circle cx="24" cy="24" r="3"/></svg>',
+  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 14h16v22H16z"/><path d="M20 20h8M20 26h8"/></svg>',
+  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 12h14l8 8v16H14z"/><path d="M28 12v8h8"/></svg>',
+  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 28c0-6 4-10 8-10s8 4 8 10"/><path d="M12 30h8l4 6 4-6h8"/></svg>'
+];
+const motionLabels = ["Research", "Qualify", "Pitch", "Contract", "Won"];
+let chartWindow = "batch";
+function motionMarkup(active) {
+  return motionLabels.map((label, index) => {
+    const state = index < active ? "is-done" : index === active ? "is-now" : "";
+    return `<div class="motion-step ${state}">${motionIcons[index]}<div class="motion-track"><span class="motion-dot"></span></div><small>${label}</small></div>`;
+  }).join("");
+}
+function chartPoint(value, index, count, max) {
+  const x = count === 1 ? 320 : 28 + index * ((640 - 56) / (count - 1));
+  const y = 24 + (1 - value / max) * 150;
+  return [x, y];
+}
+function seriesPath(values) {
+  if (!values.length) return "";
+  const max = Math.max(1, ...values);
+  if (values.length === 1) {
+    const y = chartPoint(values[0], 0, 1, max)[1];
+    return "M28 " + (y + 36).toFixed(1) + " C180 " + y.toFixed(1) + " 460 " + y.toFixed(1) + " 612 " + (y + 28).toFixed(1);
+  }
+  return values.map((value, index) => {
+    const point = chartPoint(value, index, values.length, max);
+    return (index ? "L" : "M") + point[0].toFixed(1) + " " + point[1].toFixed(1);
+  }).join(" ");
+}
+function windowLeads() {
+  const current = batchLeads();
+  if (chartWindow === "all") return leads.filter((lead) => !fixtureLead(lead));
+  if (chartWindow === "week") return current.slice(-8);
+  return current;
+}
+function renderStrategy() {
+  const rows = windowLeads();
+  const priorBatch = batches[1];
+  const priorRows = priorBatch ? priorBatch.leadIds.map((id) => leads.find((lead) => lead.id === id)).filter(Boolean) : [];
+  const scores = rows.map((lead) => Number(lead.score) || 0);
+  const prior = priorRows.map((lead) => Number(lead.score) || 0);
+  const match = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
+  const priorMatch = prior.length ? Math.round(prior.reduce((sum, score) => sum + score, 0) / prior.length) : null;
+  document.getElementById("pipeLeads").textContent = String(rows.length);
+  document.getElementById("pipeMatch").textContent = String(match);
+  document.getElementById("pipeDelta").textContent = priorMatch == null ? "this run" : (match - priorMatch >= 0 ? "+" : "") + (match - priorMatch) + " vs prior";
+  const now = seriesPath(scores);
+  const before = seriesPath(prior.length ? prior : scores.map(() => 0));
+  document.getElementById("pipeNow").setAttribute("d", now);
+  document.getElementById("pipePrior").setAttribute("d", prior.length ? before : "");
+  document.getElementById("pipeArea").setAttribute("d", now ? now + " L612 210 L28 210 Z" : "");
+  const plot = document.getElementById("pipeNow");
+  const length = plot.getTotalLength ? plot.getTotalLength() : 0;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (length && !reduce) {
+    plot.style.strokeDasharray = String(length);
+    plot.style.strokeDashoffset = String(length);
+    plot.getBoundingClientRect();
+    plot.style.transition = "stroke-dashoffset 1.1s ease";
+    plot.style.strokeDashoffset = "0";
+  } else {
+    plot.style.strokeDasharray = "";
+    plot.style.strokeDashoffset = "";
+  }
+  document.getElementById("pipeNowLabel").textContent = chartWindow === "all" ? "All leads" : "This batch";
+  document.getElementById("pipePriorLabel").textContent = prior.length ? "Prior batch" : "No prior";
+  document.getElementById("pipeAxis").innerHTML = (rows.length ? rows : [{ company: "No leads" }]).slice(0, 7).map((lead) => `<span>${escapeHtml(String(lead.company || "").slice(0, 8))}</span>`).join("");
+  const active = rows.some((lead) => lead.priority === "High") ? 2 : 0;
+  document.getElementById("motionLight").innerHTML = motionMarkup(active);
+  document.getElementById("motionNight").innerHTML = motionMarkup(active);
+}
+document.querySelectorAll(".strategy-switch button").forEach((button) => {
+  button.onclick = () => {
+    const pane = button.dataset.pane;
+    document.querySelectorAll(".strategy-switch button").forEach((item) => {
+      const on = item === button;
+      item.classList.toggle("on", on);
+      item.setAttribute("aria-selected", String(on));
+    });
+    document.getElementById("pane-pipeline").hidden = pane !== "pipeline";
+    document.getElementById("pane-motion").hidden = pane !== "motion";
+    document.getElementById("pane-night").hidden = pane !== "night";
+    const view = document.getElementById("view-strategy");
+    view.classList.toggle("is-paper", pane !== "pipeline");
+    document.getElementById("desk").classList.toggle("is-paper", pane !== "pipeline");
+    renderStrategy();
+  };
+});
+document.querySelectorAll("[data-window]").forEach((button) => {
+  button.onclick = () => {
+    chartWindow = button.dataset.window;
+    document.querySelectorAll("[data-window]").forEach((item) => item.classList.toggle("on", item === button));
+    renderStrategy();
+  };
+});
+document.querySelectorAll("[data-notes]").forEach((button) => {
+  button.onclick = () => {
+    const note = document.getElementById("notes-" + button.dataset.notes);
+    note.hidden = !note.hidden;
+  };
+});
+document.getElementById("nightNotesForm").onsubmit = (event) => {
+  event.preventDefault();
+  const note = document.getElementById("notes-night");
+  note.hidden = !note.hidden;
+};
 startWelcomeOrb();
 loadDesk().catch(() => toast("The lead list did not load. Nothing was written to Sheets."));
 </script>
