@@ -263,12 +263,6 @@
     font-size: clamp(40px, 5vw, 64px); letter-spacing: -0.03em; line-height: 1; text-align: center;
     color: #fff; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
   }
-  .home-pills { display: flex; justify-content: center; gap: 10px; margin: -12px 0 22px; }
-  .home-pill {
-    border: 0; border-radius: 999px; background: #fff; color: #202124;
-    min-height: 44px; padding: 0 18px; font-weight: 700; font-size: 14px;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-  }
   .strategy-view {
     position: fixed; inset: 0; z-index: 12; overflow: auto; background: #141618; color: #fff;
     padding: 0 24px 48px;
@@ -345,8 +339,8 @@
     .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line, .motion-step.is-now .motion-dot { animation: none; stroke-dashoffset: 0; }
   }
   .grid {
-    width: min(1040px, 100%);
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
+    width: min(980px, 100%);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
   }
   .tile {
     display: flex; align-items: center; gap: 12px; text-align: left;
@@ -660,9 +654,17 @@
   @media (max-width: 900px) {
     .radar-view { padding: 0; }
   }
+  #view-map {
+    position: fixed; inset: 0; z-index: 12; width: 100%; max-width: none; margin: 0;
+    padding: 76px 20px 28px; overflow: auto; background: #f6f7f9;
+  }
+  #view-map .territory-map { height: min(72dvh, 760px); min-height: 420px; }
   .desk.is-lead .home-link,
   .desk.is-lead .top .icon-btn,
   .desk.is-lead .top .settings-btn,
+  .desk.is-map .home-link,
+  .desk.is-map .top .icon-btn,
+  .desk.is-map .top .settings-btn,
   .desk.is-strategy.is-paper .home-link,
   .desk.is-strategy.is-paper .top .icon-btn,
   .desk.is-strategy.is-paper .top .settings-btn { color: #202124; text-shadow: none; }
@@ -886,7 +888,6 @@
   @keyframes pulse { 50% { opacity: 0.55; } }
 
   @media (max-width: 980px) {
-    .grid { grid-template-columns: 1fr 1fr; }
     .studio { grid-template-columns: 1fr; width: min(720px, calc(100% - 24px)); }
     .panel { min-height: 0; }
     .panel.doc { min-height: min(78dvh, 720px); }
@@ -900,6 +901,7 @@
     #gate .nav { padding: 18px 16px 0; }
     #gate .copy, #gate .popular { padding: 20px 16px; }
     #view-home { padding: 88px 16px 120px; }
+    .grid { grid-template-columns: 1fr 1fr; }
     .dock { gap: 14px; }
     .dock i { width: 44px; height: 44px; }
     .top { gap: 10px; }
@@ -1060,9 +1062,6 @@
   <main id="main">
     <section class="view" id="view-home" hidden>
       <h1 class="wordmark" id="homeTitle" tabindex="-1">Lead desk</h1>
-      <div class="home-pills">
-        <button type="button" class="home-pill" data-view="strategy">Strategy</button>
-      </div>
       <div class="grid" id="homeGrid"></div>
     </section>
 
@@ -1159,16 +1158,8 @@
       <div id="leadCards"></div>
     </section>
 
-    <section class="view page" id="view-map" hidden>
-      <div class="quote-card">
-        <h2>Territory</h2>
-        <p class="lede">Headquarters grouped for local sales. Coordinates come from the Apps Script Maps geocoder, not a hazard layer.</p>
-        <p><button type="button" class="primary" data-sheet="map">Open the full map</button></p>
-        <table>
-          <thead><tr><th>Company</th><th>Group</th><th>Coordinates</th></tr></thead>
-          <tbody id="mapRows"></tbody>
-        </table>
-      </div>
+    <section class="view" id="view-map" hidden>
+      <div class="territory" id="territoryPage"></div>
     </section>
 
     <section class="view radar-view" id="view-analytics" hidden></section>
@@ -1396,7 +1387,8 @@ const tiles = [
   { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "sparkles", color: "#174ea6" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
   { view: "analytics", title: "Analytics", copy: "ICP match and review stages", icon: "sparkles", color: "#1a73e8" },
-  { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" }
+  { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" },
+  { view: "strategy", title: "Strategy", copy: "Pipeline and go-to-market", icon: "activity", color: "#1e8e3e" }
 ];
 const tools = [
   { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
@@ -1675,6 +1667,7 @@ function show(name) {
   const desk = document.getElementById("desk");
   desk.classList.toggle("is-home", name === "home");
   desk.classList.toggle("is-lead", name === "lead");
+  desk.classList.toggle("is-map", name === "map");
   desk.classList.toggle("is-strategy", name === "strategy");
   if (name !== "strategy") desk.classList.remove("is-paper");
   const homeLink = document.querySelector(".home-link");
@@ -1722,6 +1715,10 @@ document.body.addEventListener("click", (event) => {
     return;
   }
   const sheetButton = event.target.closest("[data-sheet]");
+  if (sheetButton && sheetButton.dataset.sheet === "map") {
+    show("map");
+    return;
+  }
   if (sheetButton && sheetButton.closest("#toolGrid")) {
     openSheet(sheetButton.dataset.sheet);
     return;
@@ -2315,8 +2312,27 @@ function renderAccounts() {
   });
 }
 function renderMap() {
-  const rows = batchLeads();
-  document.getElementById("mapRows").innerHTML = rows.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.distance || lead.hq || "")}</td><td>${escapeHtml(lead.coords || lead.hq || "")}</td></tr>`).join("") || "<tr><td colspan=\"3\">No headquarters in this batch.</td></tr>";
+  const host = document.getElementById("territoryPage");
+  if (!host || !window.Territory) return;
+  host.replaceChildren();
+  window.Territory.mount(host, {
+    getLeads: () => batchLeads(),
+    safeUrl,
+    openLead(lead) {
+      pickLead(lead);
+      show("lead");
+    },
+    getSelected: () => selected,
+    setLive,
+    applyLeads(incoming) {
+      if (!Array.isArray(incoming)) return;
+      for (const next of incoming) {
+        const index = leads.findIndex((item) => item.id === next.id);
+        if (index >= 0) leads[index] = next;
+        else leads.push(next);
+      }
+    },
+  });
 }
 const researchPips = [
   ["#e2157b", "clock"],
