@@ -432,19 +432,33 @@ function popupCard(state, lead, point) {
     button("Add to day route", () => remember(state, "day", lead, point)),
     button("Open lead", () => state.api.openLead(lead)),
   );
+  const scored = state.analytics && state.analytics.scores ? leadScore(state, { ...lead, lat: point.lat, lng: point.lng }) : null;
+  if (scored) {
+    const why = document.createElement("p");
+    why.textContent = "Why this score: " + scored.score + ". " + scored.reasons.join(" ");
+    card.append(why);
+  }
   card.append(maps, actions);
   return card;
 }
 
 function addMarker(state, L, lead, point) {
+  const scored = state.analytics && state.analytics.scores ? leadScore(state, { ...lead, lat: point.lat, lng: point.lng }) : null;
+  const scale = scored ? 0.75 + (scored.score / 100) * 0.55 : 1;
+  const height = (approximate(lead) ? 28 : 36) * scale;
+  const width = 28 * scale;
   const icon = L.divIcon({
     className: "pin-icon",
     html: pinSvg(lead),
-    iconSize: approximate(lead) ? [28, 28] : [28, 36],
-    iconAnchor: approximate(lead) ? [14, 14] : [14, 36],
+    iconSize: [width, height],
+    iconAnchor: [width / 2, approximate(lead) ? height / 2 : height],
     popupAnchor: [0, approximate(lead) ? -12 : -32],
   });
-  const marker = L.marker([point.lat, point.lng], { icon, title: lead.company, keyboard: true });
+  const marker = L.marker([point.lat, point.lng], {
+    icon,
+    title: scored ? lead.company + ", score " + scored.score : lead.company,
+    keyboard: true,
+  });
   const popup = L.popup({
     maxWidth: 280,
     autoPan: true,
@@ -469,9 +483,135 @@ function addMarker(state, L, lead, point) {
   return marker;
 }
 
+const CLUSTER_COLORS = ["#1a73e8", "#188038", "#e37400", "#9334e6", "#d93025", "#007b83"];
+
+function placedLeads(state) {
+  return state.api.getLeads().filter((lead) => hasHq(lead) && pointOf(lead)).map((lead) => {
+    const point = pointOf(lead);
+    return { ...lead, lat: point.lat, lng: point.lng };
+  });
+}
+
+function leadScore(state, lead) {
+  if (!window.Geo || !lead) return null;
+  const start = state.route.from || state.here || null;
+  return window.Geo.scoreLead(lead, { start, leads: placedLeads(state), epsKm: 25 });
+}
+
+function visibleLeads(state) {
+  let leads = state.api.getLeads();
+  if (state.analytics && state.analytics.clusterIds) {
+    leads = leads.filter((lead) => state.analytics.clusterIds.has(lead.id) || !pointOf(lead));
+  }
+  if (state.analytics && state.analytics.highOnly) {
+    leads = leads.filter((lead) => lead.priority === "High" && !lead.negative);
+  }
+  if (state.analytics && state.analytics.scores && window.Geo) {
+    leads = leads.filter((lead) => {
+      if (!pointOf(lead)) return true;
+      const scored = leadScore(state, { ...lead, ...pointOf(lead) });
+      return !scored || scored.score >= state.analytics.minScore;
+    });
+    leads = [...leads].sort((left, right) => {
+      const leftScore = pointOf(left) ? (leadScore(state, { ...left, ...pointOf(left) }) || {}).score || 0 : -1;
+      const rightScore = pointOf(right) ? (leadScore(state, { ...right, ...pointOf(right) }) || {}).score || 0 : -1;
+      return rightScore - leftScore;
+    });
+  }
+  return leads;
+}
+
+function drawTerritories(state) {
+  clearBucket(state, "territory");
+  if (!state.analytics || !state.analytics.territories || !window.Geo || !state.map) return;
+  const grouped = window.Geo.dbscan(placedLeads(state), { epsKm: 25, minPts: 2 });
+  grouped.clusters.forEach((cluster, index) => {
+    const color = CLUSTER_COLORS[index % CLUSTER_COLORS.length];
+    const shape = window.Geo.territoryShape(cluster.points);
+    const total = cluster.points.reduce((sum, lead) => sum + ((leadScore(state, lead) || {}).score || 0), 0);
+    const label = cluster.label + ": " + cluster.points.length + ", score " + total;
+    const layer = shape.kind === "circle"
+      ? window.L.circle([shape.center.lat, shape.center.lng], { radius: Math.max(shape.radiusKm, 0.5) * 1000, color, weight: 2, fillColor: color, fillOpacity: 0.12 })
+      : window.L.polygon(shape.points.map((point) => [point.lat, point.lng]), { color, weight: 2, fillColor: color, fillOpacity: 0.12 });
+    layer.bindTooltip(label, { permanent: true, direction: "center" });
+    layer.on("click", () => {
+      state.analytics.clusterIds = new Set(cluster.points.map((point) => point.id));
+      const bounds = cluster.points.map((point) => [point.lat, point.lng]);
+      if (bounds.length === 1) state.map.setView(bounds[0], 12);
+      else if (bounds.length) state.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
+      renderList(state);
+      say(state, label);
+    });
+    layer.addTo(state.map);
+    state.layers.territory.push(layer);
+  });
+}
+
+function drawRings(state) {
+  clearBucket(state, "rings");
+  if (!state.analytics || !state.analytics.rings || !window.Geo || !state.map) return;
+  const start = state.route.from || state.here;
+  if (!start) {
+    if (state.legendStats) state.legendStats.textContent = "Choose a start, or use Locate me, before drawing service rings.";
+    return;
+  }
+  const counts = window.Geo.ringCounts(start, placedLeads(state));
+  ["#1a73e8", "#188038", "#e37400"].forEach((color, index) => {
+    const ring = counts[index];
+    if (!ring) return;
+    state.layers.rings.push(window.L.circle([start.lat, start.lng], {
+      radius: ring.km * 1000,
+      color,
+      weight: 1,
+      fillColor: color,
+      fillOpacity: 0.04,
+    }).addTo(state.map));
+  });
+  if (state.legendStats) state.legendStats.textContent = counts.map((ring) => ring.km + " km: " + ring.count).join(". ") + ".";
+}
+
+function planHigh(state) {
+  if (!window.Geo) return;
+  const start = state.here || state.route.from;
+  if (!start) {
+    say(state, "Choose a start, or use Locate me, before planning the day.");
+    return;
+  }
+  const highs = placedLeads(state).filter((lead) => lead.priority === "High" && !lead.negative);
+  const plan = window.Geo.planRoute(start, highs, { max: 10 });
+  state.route.day = plan.order.map((stop) => ({ label: stop.company || stop.id, lat: stop.lat, lng: stop.lng, id: stop.id }));
+  state.dayHolding = true;
+  const sentence = "Day route estimate: " + plan.totalKm.toFixed(1) + " km, " + Math.round(plan.minutes) + " min.";
+  state.day.textContent = sentence;
+  say(state, sentence);
+  if (state.route.day.length >= 2) {
+    drawRoad(state, state.route.day, "day", false, () => {
+      state.day.textContent = sentence;
+    });
+  }
+}
+
+function rebuildMarkers(state) {
+  if (!state.map || !window.L) return;
+  for (const marker of state.markers.values()) state.map.removeLayer(marker);
+  state.markers.clear();
+  for (const lead of placedLeads(state)) {
+    if (state.analytics.clusterIds && !state.analytics.clusterIds.has(lead.id)) continue;
+    if (state.analytics.highOnly && (lead.priority !== "High" || lead.negative)) continue;
+    addMarker(state, window.L, lead, { lat: lead.lat, lng: lead.lng });
+  }
+}
+
+function refreshAnalytics(state) {
+  drawTerritories(state);
+  drawRings(state);
+  rebuildMarkers(state);
+  renderList(state);
+}
+
 function renderList(state) {
   state.list.replaceChildren();
-  const leads = state.api.getLeads();
+  const leads = visibleLeads(state);
   const placed = [];
   const waiting = [];
   const missing = [];
@@ -498,7 +638,9 @@ function renderList(state) {
   };
   if (placed.length) addHeading("On the map");
   for (const lead of placed) {
-    addRow(lead, lead.hq, () => {
+    const scored = state.analytics && state.analytics.scores ? leadScore(state, { ...lead, ...pointOf(lead) }) : null;
+    const note = scored ? lead.hq + ". Score " + scored.score + "." : lead.hq;
+    addRow(lead, note, () => {
       const marker = state.markers.get(lead.id);
       const point = pointOf(lead);
       if (!marker || !point || !state.map) return;
@@ -635,6 +777,8 @@ function refreshPins(state) {
     state.fittedCount = points.length;
   }
   drawSpiders(state);
+  drawTerritories(state);
+  drawRings(state);
 }
 
 function pendingLeads(state) {
@@ -706,7 +850,28 @@ function mountMap(state, L) {
   watchTiles(state, satellite);
   state.map = L.map(state.host, { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
   street.addTo(state.map);
-  L.control.layers({ Street: street, Satellite: satellite }, { "Place names": labels }).addTo(state.map);
+  const territoryLayer = L.layerGroup();
+  const scoreLayer = L.layerGroup();
+  const ringLayer = L.layerGroup();
+  L.control.layers(
+    { Street: street, Satellite: satellite },
+    { "Place names": labels, Territories: territoryLayer, Scores: scoreLayer, "Service rings": ringLayer },
+  ).addTo(state.map);
+  state.map.on("overlayadd", (event) => {
+    if (event.name === "Territories") state.analytics.territories = true;
+    if (event.name === "Scores") state.analytics.scores = true;
+    if (event.name === "Service rings") state.analytics.rings = true;
+    refreshAnalytics(state);
+  });
+  state.map.on("overlayremove", (event) => {
+    if (event.name === "Territories") {
+      state.analytics.territories = false;
+      state.analytics.clusterIds = null;
+    }
+    if (event.name === "Scores") state.analytics.scores = false;
+    if (event.name === "Service rings") state.analytics.rings = false;
+    refreshAnalytics(state);
+  });
   state.map.on("baselayerchange", (event) => {
     if (event.name === "Satellite" && !state.map.hasLayer(labels)) labels.addTo(state.map);
     if (event.name === "Street" && state.map.hasLayer(labels)) state.map.removeLayer(labels);
@@ -787,7 +952,9 @@ window.Territory = {
       toInput: null,
       card: null,
       dayHolding: false,
-      layers: { road: [], day: [], spider: [] },
+      layers: { road: [], day: [], spider: [], territory: [], rings: [] },
+      analytics: { territories: false, scores: false, rings: false, highOnly: false, minScore: 0, clusterIds: null },
+      legendStats: null,
       route: { from: null, to: null, day: [] },
     };
     active = state;
@@ -837,7 +1004,34 @@ window.Territory = {
     state.ends = document.createElement("p");
     state.day = document.createElement("p");
     state.card = document.createElement("p");
-    form.append(disclosure, state.fromInput.wrap, swap, state.toInput.wrap, mine, go, state.ends, state.day, state.card);
+    const legend = document.createElement("div");
+    legend.className = "territory-legend";
+    const highOnly = document.createElement("label");
+    const highBox = document.createElement("input");
+    highBox.type = "checkbox";
+    highOnly.append(highBox, document.createTextNode(" High only"));
+    highBox.addEventListener("change", () => {
+      state.analytics.highOnly = highBox.checked;
+      refreshAnalytics(state);
+    });
+    const minLabel = document.createElement("label");
+    minLabel.append(document.createTextNode("Score at least "));
+    const minScore = document.createElement("input");
+    minScore.type = "number";
+    minScore.min = "0";
+    minScore.max = "100";
+    minScore.value = "0";
+    minScore.addEventListener("change", () => {
+      const value = Number(minScore.value);
+      state.analytics.minScore = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+      state.analytics.scores = true;
+      refreshAnalytics(state);
+    });
+    minLabel.append(minScore);
+    state.legendStats = document.createElement("p");
+    const plan = button("Plan best visit order for High leads", () => planHigh(state));
+    legend.append(highOnly, minLabel, plan, state.legendStats);
+    form.append(disclosure, state.fromInput.wrap, swap, state.toInput.wrap, mine, go, state.ends, state.day, state.card, legend);
     paintRoute(state);
     state.list = document.createElement("div");
     state.list.className = "territory-list";
