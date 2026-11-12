@@ -69,15 +69,33 @@ function distToSegment(x, y, x1, y1, x2, y2) {
   return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
 }
 
-function alphaInk(x, y, size) {
-  const thick = size * 0.07;
-  const cx = size * 0.40;
-  const cy = size * 0.52;
-  const radius = size * 0.155;
-  const ring = Math.abs(Math.hypot(x - cx, y - cy) - radius) <= thick * 0.5;
-  const legX = cx + radius * 0.55;
-  const leg = distToSegment(x, y, legX, size * 0.16, legX, size * 0.84) <= thick * 0.5;
-  return ring || leg;
+const fanBlades = [
+  [-97, 118, 3, 18, 6],
+  [-127, 104, 3, 16, 6],
+  [-154, 82, 3, 13, 6],
+  [-171, 50, 2.5, 10, 5],
+  [137, 28, 2, 6, 4],
+  [50, 22, 1.5, 4.5, 4],
+];
+
+function inFanBlade(px, py, cx, cy, deg, len, inner, outer, inset) {
+  const angle = deg * Math.PI / 180;
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  const dx = px - cx;
+  const dy = py - cy;
+  const along = dx * ux + dy * uy;
+  const side = dx * -uy + dy * ux;
+  if (along < inset || along > len) return false;
+  const half = inner + (outer - inner) * ((along - inset) / (len - inset));
+  return Math.abs(side) <= half;
+}
+
+function fanInk(x, y, size) {
+  const scale = (size * 0.7) / 154;
+  const lx = (x - size * 0.5) / scale + 50;
+  const ly = (y - size * 0.48) / scale + 77;
+  return fanBlades.some((blade) => inFanBlade(lx, ly, 80, 128, ...blade));
 }
 
 function icon(size, maskable) {
@@ -85,7 +103,7 @@ function icon(size, maskable) {
   const radius = size * 0.22;
   return png(size, (x, y) => {
     if (!maskable && !inRound(x + 0.5, y + 0.5, size, radius)) return [0, 0, 0, 0];
-    if (alphaInk(x + 0.5, y + 0.5, size)) return [255, 255, 255, 255];
+    if (fanInk(x + 0.5, y + 0.5, size)) return [255, 255, 255, 255];
     return background;
   });
 }

@@ -1,4 +1,4 @@
-const VERSION = 'v2';
+const VERSION = 'v4';
 const SHELL = `lead-shell-${VERSION}`;
 const RUNTIME = `lead-runtime-${VERSION}`;
 const PRECACHE = [

@@ -147,11 +147,7 @@
   #gate .pager { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
   #gate .pager button { width: 7px; height: 7px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,0.45); }
   #gate .pager button.on { background: #fff; }
-  #gate .welcome-hero {
-    position: absolute; left: 62%; top: 40%; z-index: 2;
-    width: min(460px, 54%); aspect-ratio: 1;
-    transform: translate(-50%, -50%); pointer-events: none;
-  }
+  #gate .welcome-hero { display: none; }
   #gate .welcome-orb { position: absolute; inset: 0; }
   #gate .welcome-orb::before {
     content: ""; position: absolute; inset: 6%; border-radius: 50%;
@@ -170,10 +166,26 @@
     #gate .card {
       width: 100%; height: 100dvh; min-height: 100dvh; border-radius: 0; box-shadow: none;
     }
-    #gate .welcome-hero { width: min(640px, 86vw); top: 46%; left: 50%; }
     #gate .nav, #gate .rail, #gate .popular, #gate .edge-tools { display: none; }
     #gate .copy { left: 50%; top: auto; bottom: 36px; transform: translateX(-50%); width: auto; text-align: center; }
     #gate .copy h1, #gate .copy p { display: none; }
+  }
+  @media (max-width: 800px) {
+    #gate .welcome-hero {
+      display: block; position: absolute; inset: 0; z-index: 5;
+      width: auto; height: auto; transform: none; pointer-events: none;
+      background: #07161e url("bg.jpg") center / cover no-repeat;
+    }
+    #gate .welcome-orb {
+      inset: auto; left: 50%; top: 46%; width: min(88vmin, 560px); aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+    }
+    #gate .welcome-logo { width: 96px; height: 128px; }
+    #gate .welcome-logo svg { width: 68px; height: 102px; }
+    #gate .welcome-enter {
+      pointer-events: auto; position: absolute; left: 50%;
+      bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    }
   }
 
   .desk {
@@ -201,7 +213,7 @@
     width: 34px; height: 34px; border-radius: 50%; background: #1a73e8; color: #fff;
     border: 2px solid #fff; display: grid; place-items: center;
   }
-  .top .avatar svg { width: 20px; height: 20px; }
+  .top .avatar svg { width: 16px; height: 22px; }
   .apps-menu {
     position: fixed; top: 58px; right: 68px; z-index: 30; min-width: 220px;
     background: #fff; color: var(--ink); border-radius: 16px; padding: 8px;
@@ -343,7 +355,7 @@
     box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
   }
   .tile-ico { width: 28px; height: 28px; flex: none; display: grid; place-items: center; }
-  .tile-ico svg, .tool svg, .file-ico svg, .doc-mark svg { width: 26px; height: 26px; }
+  .tile-ico svg, .tool svg, .file-ico svg { width: 26px; height: 26px; }
   .tile b { display: block; font-size: 15px; letter-spacing: -0.02em; }
   .tile small { display: block; margin-top: 2px; color: #5f6368; font-size: 13px; font-weight: 500; }
 
@@ -435,7 +447,7 @@
   .panel.doc { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
   .doc-main { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 28px 28px 8px; }
   .think-stage {
-    position: absolute; left: 50%; top: 46%; z-index: 2; width: min(168px, 34%);
+    position: absolute; left: 50%; top: 58%; z-index: 2; width: min(440px, 78%);
     aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none;
   }
   .think-stage[hidden], body:not(.is-thinking) .think-stage { display: none !important; }
@@ -456,7 +468,8 @@
     padding: 4px 2px;
   }
   .src-kind { color: #5f6368; font-size: 13px; }
-  .doc-mark { width: 28px; height: 28px; }
+  .doc-mark { width: 42px; height: 62px; }
+  #docMark svg { width: 42px; height: 62px; }
   .doc h1 { margin: 10px 0 0; font-size: clamp(28px, 3vw, 36px); letter-spacing: -0.03em; line-height: 1.15; }
   .meta { margin: 6px 0 0; color: #5f6368; font-size: 13px; font-weight: 500; }
   .doc-copy { margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
@@ -876,6 +889,7 @@
     .grid { grid-template-columns: 1fr 1fr; }
     .studio { grid-template-columns: 1fr; width: min(720px, calc(100% - 24px)); }
     .panel { min-height: 0; }
+    .panel.doc { min-height: min(78dvh, 720px); }
     .side-dots { display: none; }
   }
   @media (max-width: 900px) {
@@ -967,15 +981,16 @@
 <body>
 <a class="skip" href="#main">Skip to the desk</a>
 <section id="gate" class="scene" aria-label="Lead desk">
+  <div class="welcome-hero">
+    <div class="welcome-orb">
+      <canvas id="welcomeFrom" aria-hidden="true"></canvas>
+      <canvas id="welcomeTo" aria-hidden="true"></canvas>
+    </div>
+    <div class="welcome-logo" id="welcomeLogo"></div>
+    <button type="button" class="enter welcome-enter" id="welcomeEnter">Enter</button>
+  </div>
   <section class="card" id="landCard">
     <div class="shade" aria-hidden="true"></div>
-    <div class="welcome-hero">
-      <div class="welcome-orb">
-        <canvas id="welcomeFrom" aria-hidden="true"></canvas>
-        <canvas id="welcomeTo" aria-hidden="true"></canvas>
-      </div>
-      <div class="welcome-logo" id="welcomeLogo"></div>
-    </div>
     <header class="nav">
       <div class="brand">Lead</div>
       <nav class="links" aria-label="Landing slides">
@@ -1335,7 +1350,7 @@ const brandPath = {
   gmail: "M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"
 };
 const brandFill = { sheets: "#0F9D58", docs: "#4285F4", drive: "#FFBA00", gmail: "#EA4335" };
-const alphaMark = `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M41 27c0-8.2-7.6-14-15.4-12.2C16.4 16.6 12 24.8 14 33.2c2.2 9.2 11.2 14.2 20.2 12.2 5.4-1.2 9.2-5.2 10.2-9.4" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/><path d="M40 11v42" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>`;
+const alphaMark = `<svg viewBox="0 0 100 154" fill="currentColor" aria-hidden="true"><path d="M82.2 121.7L83.5 8.7L47.8 13.1L76.3 122.4Z"/><path d="M78.8 121.4L30.2 35.3L4.6 54.6L74 125Z"/><path d="M75.9 122.7L12 80.4L0.6 103.7L73.3 128.1Z"/><path d="M75.5 124.7L32.2 110.3L29.1 130.1L74.7 129.7Z"/><path d="M75.7 129.3L55.4 142.7L63.6 151.5L78.4 132.2Z"/><path d="M81.4 132L90.7 147.7L97.6 142L83.7 130.1Z"/></svg>`;
 const glyph = {
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
@@ -1468,6 +1483,7 @@ document.querySelectorAll("#gate .links button").forEach((button) => {
   button.onclick = () => paintGate(Number(button.dataset.slide));
 });
 document.getElementById("gateEnter").onclick = openDesk;
+document.getElementById("welcomeEnter").onclick = openDesk;
 
 function iconWrap(item) {
   const color = item.color ? ` style="color:${item.color}"` : "";
@@ -2362,8 +2378,11 @@ function stopWelcomeOrb() {
   cancelAnimationFrame(welcomeFrame);
   welcomeFrame = 0;
 }
+function phoneDesk() {
+  return window.matchMedia("(max-width: 800px)").matches;
+}
 function startWelcomeOrb() {
-  if (!window.Orbs || document.getElementById("gate").hidden) return;
+  if (!phoneDesk() || !window.Orbs || document.getElementById("gate").hidden) return;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const started = performance.now();
   const tick = (now) => {
@@ -2391,6 +2410,7 @@ function startThinkOrb() {
   thinkStarted = performance.now();
   thinkLineAt = -1;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animate = phoneDesk() && !reduce;
   const tick = (now) => {
     if (!document.body.classList.contains("is-thinking")) return;
     const elapsed = Math.max(0, now - thinkStarted);
@@ -2402,14 +2422,14 @@ function startThinkOrb() {
     }
     const fromCanvas = document.getElementById("thinkFrom");
     const toCanvas = document.getElementById("thinkTo");
-    const span = reduce ? 4000 : thinkHold + thinkFade;
+    const span = animate ? thinkHold + thinkFade : 4000;
     const slot = elapsed % (span * thinkStates.length);
     const index = Math.floor(slot / span);
     const local = slot - index * span;
-    const blend = reduce || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
+    const blend = !animate || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
     const from = window.Orbs.resolvePreset(thinkStates[index], 64);
     const to = window.Orbs.resolvePreset(thinkStates[(index + 1) % thinkStates.length], 64);
-    const t = reduce ? 1.4 : elapsed / 1000;
+    const t = animate ? elapsed / 1000 : 1.4;
     paintThinkCanvas(fromCanvas, from, t, 1 - blend);
     paintThinkCanvas(toCanvas, to, t, blend > 0 ? blend : 0);
     thinkFrame = requestAnimationFrame(tick);
