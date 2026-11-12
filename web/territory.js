@@ -222,8 +222,11 @@ function renderList(state) {
   }
   if (waiting.length) addHeading("Headquarters not placed yet");
   for (const lead of waiting) {
-    addRow(lead, lead.hq + ". Not placed on the map yet.", () => {
-      say(state, "No pin for " + lead.company + ". The headquarters is not on the map yet.");
+    const missed = lead.geo && lead.geo.status === "not_found";
+    addRow(lead, missed ? "No public match for this address." : lead.hq + ". Not placed on the map yet.", () => {
+      say(state, missed
+        ? "No public match for " + lead.company + "."
+        : "No pin for " + lead.company + ". The headquarters is not on the map yet.");
     });
   }
   if (missing.length) addHeading("No public headquarters address");
@@ -323,6 +326,90 @@ function watchTiles(state, layer) {
   });
 }
 
+function refreshPins(state) {
+  renderList(state);
+  if (!state.map || !state.L) return;
+  const points = [];
+  const seen = new Set();
+  for (const lead of state.api.getLeads()) {
+    const point = hasHq(lead) ? pointOf(lead) : null;
+    if (!point) continue;
+    seen.add(lead.id);
+    points.push([point.lat, point.lng]);
+    if (!state.markers.has(lead.id)) addMarker(state, state.L, lead, point);
+  }
+  for (const [id, marker] of state.markers) {
+    if (seen.has(id)) continue;
+    state.map.removeLayer(marker);
+    state.markers.delete(id);
+  }
+  if (points.length > state.fittedCount) {
+    state.map.fitBounds(points, { padding: [28, 28], maxZoom: 12 });
+    state.fittedCount = points.length;
+  }
+}
+
+function pendingLeads(state) {
+  return state.api.getLeads().filter((lead) => hasHq(lead) && !pointOf(lead) && !(lead.geo && lead.geo.status === "not_found"));
+}
+
+async function placePending(state) {
+  const controller = new AbortController();
+  state.placeAbort = controller;
+  if (!pendingLeads(state).length) return;
+  state.placing = true;
+  let guard = 0;
+  try {
+    while (guard < 40) {
+      if (controller.signal.aborted || active !== state) return;
+      const pending = pendingLeads(state);
+      if (!pending.length) break;
+      const leads = state.api.getLeads();
+      const total = leads.filter(hasHq).length;
+      const placed = leads.filter((lead) => hasHq(lead) && pointOf(lead)).length;
+      say(state, "Placing pins " + placed + " of " + total + ".");
+      let response;
+      try {
+        response = await fetch("/api/geocode", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: pending.slice(0, 6).map((lead) => lead.id) }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        say(state, "Pins could not be placed. The list below is still usable.");
+        return;
+      }
+      if (response.status === 429) {
+        const busy = await response.json().catch(() => ({}));
+        if (active === state && state.api.applyLeads) state.api.applyLeads(busy.leads);
+        if (active === state) refreshPins(state);
+        say(state, "The geocoder is busy. Pins that are already placed stay on the map.");
+        return;
+      }
+      if (!response.ok) {
+        say(state, "Pins could not be placed. The list below is still usable.");
+        return;
+      }
+      const body = await response.json();
+      if (active !== state) return;
+      if (state.api.applyLeads) state.api.applyLeads(body.leads);
+      refreshPins(state);
+      if (Array.isArray(body.failed) && body.failed.length) {
+        say(state, "Pins could not be placed. The list below is still usable.");
+        return;
+      }
+      if (!body.remaining) break;
+      guard += 1;
+    }
+  } finally {
+    state.placing = false;
+  }
+  if (active === state && !controller.signal.aborted) say(state, "Territory map is open.");
+}
+
 function mountMap(state, L) {
   const street = L.tileLayer(MAP_ENDPOINTS.street, { attribution: STREET_ATTRIBUTION, maxZoom: 19 });
   const satellite = L.tileLayer(MAP_ENDPOINTS.satellite, { attribution: SATELLITE_ATTRIBUTION, maxZoom: 19 });
@@ -344,6 +431,7 @@ function mountMap(state, L) {
     points.push([point.lat, point.lng]);
   }
   if (points.length) state.map.fitBounds(points, { padding: [28, 28], maxZoom: 12 });
+  state.fittedCount = points.length;
   const drawer = document.getElementById("studioDrawer");
   state.onTransition = (event) => {
     if (event.propertyName === "transform" && state.map) state.map.invalidateSize();
@@ -401,6 +489,10 @@ window.Territory = {
       onTransition: null,
       onFullscreen: null,
       tileErrors: 0,
+      fittedCount: 0,
+      placing: false,
+      placeAbort: null,
+      L: null,
       route: { from: null, to: null, day: [] },
     };
     active = state;
@@ -450,20 +542,23 @@ window.Territory = {
     say(state, "Opening the territory map.");
     loadLeaflet().then((L) => {
       if (active !== state) return;
+      state.L = L;
       mountMap(state, L);
-      say(state, "Territory map is open.");
+      if (!state.placing) say(state, "Territory map is open.");
     }).catch(() => {
       if (active !== state) return;
       state.note.hidden = false;
       state.note.textContent = "Map library could not load.";
       say(state, state.note.textContent);
     });
+    placePending(state);
   },
   destroy() {
     const state = active;
     active = null;
     if (!state) return;
     state.token += 1;
+    if (state.placeAbort) state.placeAbort.abort();
     const drawer = document.getElementById("studioDrawer");
     if (state.onTransition && drawer) drawer.removeEventListener("transitionend", state.onTransition);
     if (state.onFullscreen) {

@@ -1363,6 +1363,14 @@ function openSheet(name) {
         show("lead");
       },
       setLive,
+      applyLeads(incoming) {
+        if (!Array.isArray(incoming)) return;
+        for (const next of incoming) {
+          const index = leads.findIndex((item) => item.id === next.id);
+          if (index >= 0) leads[index] = next;
+          else leads.push(next);
+        }
+      },
     });
   }
 }

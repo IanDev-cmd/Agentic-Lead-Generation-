@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
+import { geocodeStoredLeads, searchAddresses } from './lib/geocode.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
@@ -194,6 +195,40 @@ async function handleApi(request, response, url) {
   const production = process.env.RENDER === 'true';
   if (!deskAuthorized(presented, expectedDeskToken(), production)) {
     send(response, 401, { ok: false, error: 'Desk token was rejected.' });
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/geocode/search') {
+    const query = String(url.searchParams.get('q') || '').slice(0, 200);
+    try {
+      const found = await searchAddresses(query, { root });
+      send(response, 200, { ok: true, candidates: found.candidates });
+    } catch (error) {
+      const busy = error.status === 429;
+      send(response, busy ? 429 : 502, {
+        ok: false,
+        error: busy
+          ? 'The geocoder is busy. Nothing was searched.'
+          : 'The geocoder did not answer. Nothing was searched.',
+        candidates: [],
+      });
+    }
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/geocode') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The geocode request was not JSON. Nothing was placed.' });
+      return;
+    }
+    const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)).slice(0, 6) : [];
+    try {
+      const outcome = await geocodeStoredLeads(root, ids);
+      send(response, outcome.status, outcome.body);
+    } catch {
+      send(response, 502, { ok: false, error: 'The geocoder did not answer. Nothing was placed.', leads: allLeads(root), remaining: 0, failed: [] });
+    }
     return;
   }
   const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || /\/approve$/.test(url.pathname);

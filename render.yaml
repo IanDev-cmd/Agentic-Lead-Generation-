@@ -53,3 +53,7 @@ services:
         sync: false
       - key: VAPID_SUBJECT
         value: mailto:desk@localhost
+      - key: GEOCODER_USER_AGENT
+        value: lead-desk/1.0
+      - key: GEOCODER_EMAIL
+        sync: false
