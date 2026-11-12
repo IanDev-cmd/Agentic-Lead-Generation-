@@ -570,6 +570,25 @@ function drawRings(state) {
   if (state.legendStats) state.legendStats.textContent = counts.map((ring) => ring.km + " km: " + ring.count).join(". ") + ".";
 }
 
+async function askBrief(state) {
+  const start = state.here || state.route.from;
+  say(state, "Asking for a territory brief.");
+  try {
+    const response = await fetch("/api/territory/brief", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(start ? { start: { lat: start.lat, lng: start.lng } } : {}),
+    });
+    const body = await response.json().catch(() => ({}));
+    const message = body.brief || body.error || "The brief was not written.";
+    if (state.brief) state.brief.textContent = message;
+    say(state, response.ok ? "Territory brief is ready." : message);
+  } catch {
+    if (active === state) say(state, "The brief was not written.");
+  }
+}
+
 function planHigh(state) {
   if (!window.Geo) return;
   const start = state.here || state.route.from;
@@ -1030,7 +1049,9 @@ window.Territory = {
     minLabel.append(minScore);
     state.legendStats = document.createElement("p");
     const plan = button("Plan best visit order for High leads", () => planHigh(state));
-    legend.append(highOnly, minLabel, plan, state.legendStats);
+    const brief = button("Territory brief", () => askBrief(state));
+    state.brief = document.createElement("p");
+    legend.append(highOnly, minLabel, plan, brief, state.legendStats, state.brief);
     form.append(disclosure, state.fromInput.wrap, swap, state.toInput.wrap, mine, go, state.ends, state.day, state.card, legend);
     paintRoute(state);
     state.list = document.createElement("div");

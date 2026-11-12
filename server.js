@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
 import { geocodeStoredLeads, searchAddresses } from './lib/geocode.js';
+import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
@@ -231,9 +232,42 @@ async function handleApi(request, response, url) {
     }
     return;
   }
-  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || /\/approve$/.test(url.pathname);
+  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || url.pathname === '/api/territory/brief' || /\/approve$/.test(url.pathname);
   if (metered && limited()) {
     send(response, 429, { ok: false, error: 'Too many desk writes. Wait a few minutes. Nothing was sent.' });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/territory/brief') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The brief request was not JSON. Nothing was asked.' });
+      return;
+    }
+    const rawStart = body && body.start;
+    const start = rawStart && Number.isFinite(Number(rawStart.lat)) && Number.isFinite(Number(rawStart.lng))
+      && Math.abs(Number(rawStart.lat)) <= 90 && Math.abs(Number(rawStart.lng)) <= 180
+      ? { lat: Number(rawStart.lat), lng: Number(rawStart.lng) }
+      : null;
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+      send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was asked.' });
+      return;
+    }
+    try {
+      const facts = territoryFacts(root, start);
+      const brief = await narrateTerritory({
+        apiKey,
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        facts,
+      });
+      send(response, 200, { ok: true, brief });
+    } catch (error) {
+      const secrets = [apiKey, process.env.WEBHOOK_SECRET, process.env.DESK_TOKEN].filter(Boolean);
+      const message = error instanceof Error ? error.message : 'Gemini refused the request.';
+      send(response, 502, { ok: false, error: redactSecrets(message, secrets) });
+    }
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/sources') {
