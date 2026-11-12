@@ -508,19 +508,38 @@
   }
 
   .radar-view {
+    position: fixed;
+    inset: 0;
+    z-index: 12;
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: 72px 18px 28px;
-    min-height: 100dvh;
+    padding: 0;
+    height: 100dvh;
+    background: #1e2125;
+    overflow: hidden;
   }
   .radar-view[hidden] { display: none !important; }
   @media (max-width: 900px) {
-    .radar-view { padding: 72px 10px calc(84px + env(safe-area-inset-bottom)); }
+    .radar-view { padding: 0; }
   }
+  .desk.is-lead .home-link,
+  .desk.is-lead .top .icon-btn,
+  .desk.is-lead .top .settings-btn { color: #202124; text-shadow: none; }
 
-  #view-lead { width: 100%; margin: 0; height: 100dvh; overflow: auto; padding: 64px 0 0; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
-  .trend-wrap { position: relative; min-height: calc(100dvh - 64px); display: grid; place-items: center; padding: 28px 24px 48px; }
+  #view-lead {
+    position: fixed;
+    inset: 0;
+    z-index: 12;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    height: 100dvh;
+    overflow: auto;
+    padding: 0;
+    background: #fff;
+  }
+  .trend-wrap { position: relative; min-height: 100dvh; display: grid; place-items: center; padding: 28px 24px 48px; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
   .trend-wrap::before {
     content: ""; position: absolute; left: 4%; top: 6%; width: 220px; height: 280px; border-radius: 50%;
     background: radial-gradient(circle, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
@@ -595,7 +614,7 @@
   }
   .trend-scribble { position: absolute; left: 18%; bottom: -8%; width: 54px; height: 78px; }
   .lead-contact {
-    min-height: 78vh; background: #fff; color: #141414; padding: 72px 12vw 80px;
+    min-height: 100dvh; box-sizing: border-box; background: #fff; color: #141414; padding: 88px 8vw 80px;
   }
   .lead-contact .kicker { margin: 0 0 8px; letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; color: #666; }
   .lead-contact h2 { margin: 0 0 28px; font-family: Fraunces, Georgia, serif; font-weight: 560; font-size: clamp(36px, 5vw, 56px); letter-spacing: -0.03em; }
@@ -1113,7 +1132,7 @@ import * as Geo from "/geo.js?v=1";
 window.Geo = Geo;
 </script>
 <script src="/territory.js?v=7"></script>
-<script src="/radar.js?v=1"></script>
+<script src="/radar.js?v=3"></script>
 <script>
 const brandPath = {
   sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
@@ -1407,7 +1426,9 @@ function show(name) {
   closeSheet(true);
   setMenu(false);
   document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== "view-" + name; });
-  document.getElementById("desk").classList.toggle("is-home", name === "home");
+  const desk = document.getElementById("desk");
+  desk.classList.toggle("is-home", name === "home");
+  desk.classList.toggle("is-lead", name === "lead");
   const homeLink = document.querySelector(".home-link");
   if (name === "home") homeLink.setAttribute("aria-current", "page");
   else homeLink.removeAttribute("aria-current");

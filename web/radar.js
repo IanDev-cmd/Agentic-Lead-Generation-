@@ -1,4 +1,4 @@
-/* Analytics radar. Scores companies already on the desk. Light is the default. */
+/* Analytics radar. Scores companies already on the desk. Dark is the default. */
 (function () {
   const AX = ["Tech stack fit", "Funding velocity", "Cloud & infra", "Market momentum", "Hiring & growth", "Intent signals"];
   const ST = ["Discovery & firmographics", "Tech stack audit", "Funding & financials", "Buying intent signals", "Competitive & ICP fit", "AI outreach angle", "Final score & CRM sync"];
@@ -69,11 +69,11 @@
     const style = document.createElement("style");
     style.id = "radar-style";
     style.textContent = `
-.radar-app{--radar-bg:#f4f6f8;--radar-bar:#fff;--radar-g:#178a45;--radar-line:#c5ced6;--radar-tx:#1b2127;--radar-mut:#5e6972;--radar-disk:#fff;--radar-disk-2:#f7f8fa;--radar-disk-3:#e7edf2;--radar-grid:#d5dde4;--radar-node:#1b2127;--radar-step:#fff;--radar-step-line:#d5dde4;--radar-step-on:#e7f6ec;--radar-card:#fff;--radar-card-line:#e3e8ed;--radar-on-g:#06210f;--radar-poly:rgba(23,138,69,.22);--radar-done:#e7f6ec;--radar-shadow:rgba(20,28,36,.16);height:calc(100dvh - 100px);min-height:520px;display:grid;grid-template-rows:64px 1fr;background:var(--radar-bar);color:var(--radar-tx);font-family:Barlow,Inter,system-ui,sans-serif;border-radius:18px;overflow:hidden;box-shadow:0 16px 40px var(--radar-shadow);color-scheme:light}
+.radar-app{--radar-bg:#f4f6f8;--radar-bar:#fff;--radar-g:#178a45;--radar-line:#c5ced6;--radar-tx:#1b2127;--radar-mut:#5e6972;--radar-disk:#fff;--radar-disk-2:#f7f8fa;--radar-disk-3:#e7edf2;--radar-grid:#d5dde4;--radar-node:#1b2127;--radar-step:#fff;--radar-step-line:#d5dde4;--radar-step-on:#e7f6ec;--radar-card:#fff;--radar-card-line:#e3e8ed;--radar-on-g:#06210f;--radar-poly:rgba(23,138,69,.22);--radar-done:#e7f6ec;--radar-shadow:rgba(20,28,36,.16);height:100dvh;min-height:0;display:grid;grid-template-rows:64px 1fr;background:var(--radar-bar);color:var(--radar-tx);font-family:Barlow,Inter,system-ui,sans-serif;border-radius:0;overflow:hidden;box-shadow:none;color-scheme:light}
 .radar-app.is-dark{--radar-bg:#25292E;--radar-bar:#1E2125;--radar-g:#34C759;--radar-line:#5A626A;--radar-tx:#E8ECEF;--radar-mut:#8A939B;--radar-disk:#2B3035;--radar-disk-2:#2A2F34;--radar-disk-3:#31363C;--radar-grid:#3E454C;--radar-node:#25292E;--radar-step:#292d32;--radar-step-line:#30353b;--radar-step-on:#2b3330;--radar-card:#2B3035;--radar-card-line:#363c42;--radar-on-g:#0E2216;--radar-poly:rgba(52,199,89,.25);--radar-done:#2f3b33;--radar-shadow:rgba(0,0,0,.35);color-scheme:dark}
 .radar-app button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .radar-app button:focus-visible,.radar-app a:focus-visible{outline:2px solid var(--radar-g);outline-offset:2px}
-.radar-app header{background:var(--radar-bar);display:flex;align-items:stretch;justify-content:space-between;gap:8px;padding-left:16px;border-bottom:1px solid var(--radar-card-line)}
+.radar-app header{background:var(--radar-bar);display:flex;align-items:stretch;justify-content:space-between;gap:8px;padding-left:16px;padding-right:250px;border-bottom:1px solid var(--radar-card-line)}
 .radar-app .lk{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
 .radar-app .lk a,.radar-app .theme{width:34px;height:34px;display:grid;place-items:center;color:var(--radar-mut);border-radius:6px}
 .radar-app .lk a:hover,.radar-app .theme:hover{color:var(--radar-tx)}
@@ -123,7 +123,7 @@
 .radar-app .modal button.o small{display:block;color:var(--radar-mut);margin-top:2px;font-size:12.5px}
 .radar-app .radar-empty{position:absolute;inset:0;display:grid;place-items:center;margin:0;padding:24px;text-align:center;color:var(--radar-mut);font:500 16px Barlow,sans-serif}
 .radar-app .radar-empty[hidden]{display:none}
-@media(max-width:640px){.radar-app{height:calc(100dvh - 168px);min-height:420px}.radar-app h1{font-size:16px}.radar-app .ghost{padding:0 8px;font-size:12px}.radar-app .cta{padding:0 12px;font-size:13px}.radar-app .steps{right:6px;gap:5px}.radar-app .steps button{width:34px;height:30px;font-size:15px}.radar-app .badge{left:8px;bottom:8px;width:110px}.radar-app .badge svg{width:64px;height:64px}.radar-app .cap{width:56%;bottom:8px;font-size:12px}.radar-app .sum{inset:0 46px 0 0;padding:8px}.radar-app .score{font-size:60px}.radar-app .card{padding:18px}}
+@media(max-width:640px){.radar-app{height:100dvh;min-height:0}.radar-app header{padding-right:148px}.radar-app h1{font-size:16px}.radar-app .ghost{padding:0 8px;font-size:12px}.radar-app .cta{padding:0 12px;font-size:13px}.radar-app .steps{right:6px;gap:5px}.radar-app .steps button{width:34px;height:30px;font-size:15px}.radar-app .badge{left:8px;bottom:8px;width:110px}.radar-app .badge svg{width:64px;height:64px}.radar-app .cap{width:56%;bottom:8px;font-size:12px}.radar-app .sum{inset:0 46px 0 0;padding:8px}.radar-app .score{font-size:60px}.radar-app .card{padding:18px}}
 @media(prefers-reduced-motion:reduce){.radar-app .bub{animation:none}}
 `;
     document.head.appendChild(style);
@@ -133,8 +133,11 @@
     if (!root) return;
     ensureStyle();
     const LEADS = rowsFrom(leads);
-    let dark = false;
-    try { dark = localStorage.getItem("lead-desk-theme") === "dark"; } catch { dark = false; }
+    let dark = true;
+    try {
+      const saved = localStorage.getItem("lead-desk-theme");
+      if (saved === "light") dark = false;
+    } catch { dark = true; }
     root.innerHTML = `<div class="radar-app${dark ? " is-dark" : ""}">
 <header>
   <div class="lk">
