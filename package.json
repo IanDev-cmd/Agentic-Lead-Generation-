@@ -10,10 +10,14 @@
   "scripts": {
     "start": "node server.js",
     "research": "node index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "vapid": "node scripts/vapid-keys.js",
+    "icons": "node scripts/pwa-icons.mjs"
   },
   "dependencies": {
     "@google/genai": "^3.1.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "qrcode": "^1.5.4",
+    "web-push": "^3.6.7"
   }
 }

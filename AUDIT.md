@@ -20,12 +20,13 @@ Apps Script still answers HTTP 200, which the platform does not let a script cha
 | Desk Research | `POST /api/runs` | `node index.js` with `DRY_RUN=true`, then Apps Script `doPost` when a webhook is configured | `ok` and `synced`. If the webhook is empty, the desk says nothing was written. |
 | Desk run status | `GET /api/runs/:id` | In-memory run record | The same result. |
 | Desk Approve | `POST /api/leads/:id/approve` | Apps Script `action: approve` | Draft id, or the reason no draft was saved. `sent` is false. |
-| `index.js` and `fallback/pipeline.py` | `POST` Apps Script `/exec` | `doPost` | Header `X-Webhook-Secret` only. The JSON body has no secret. |
-| Render health check | `GET /api/health` | `server.js` | `{ ok: true }`. |
+| `index.js` and `fallback/pipeline.py` | `POST` Apps Script `/exec` | `doPost` | JSON body field `secret`. Apps Script cannot read request headers. |
+| Render health check | `GET /api/health` | `server.js` | `{ ok: true }`. This route does not call Apps Script and does not carry the webhook secret. |
+| Apps Script health check | `GET /exec?secret=` | `doGet` | Query parameter only. The URL is not logged. The JSON does not include the secret. |
 
 ### Orphaned backend endpoints
 
-None. `doGet` requires the same webhook header as `doPost`. `install()` remains the one-time editor setup and is not an HTTP route.
+None. `doGet` requires the same webhook secret as `doPost`, read from the query parameter because Apps Script cannot read headers. `install()` remains the one-time editor setup and is not an HTTP route.
 
 ### Broken frontend calls
 
@@ -40,7 +41,7 @@ None open.
 Closed in this change:
 
 - The desk calls `/api/runs` and `/api/leads/:id/approve` instead of local toasts.
-- The webhook secret is not in the JSON body (`index.js`, `fallback/pipeline.py`, `Code.gs`).
+- The webhook secret travels in the POST JSON body. Apps Script web apps cannot read HTTP headers, so a header cannot authorize the call. `doGet` reads `secret` from the query string only. Logs and responses omit the value.
 - `npm start` runs `server.js`, which stays listening. The one-shot research command is `npm run research` and the Render cron.
 
 ### Warning
@@ -68,3 +69,5 @@ The desk page is still one HTML file. The route, safety, and lead rules it depen
 ## Actionable recommendations
 
 No open remediation. Before a live Gemini run, set `DRY_RUN=false` and keep `BILLING_ENABLED` as an explicit opt-in. The business profile is sent from the desk with that run.
+
+After changing `apps-script/Code.gs`, redeploy the web app (Deploy > Manage deployments > Edit > Version: New version > Deploy). The live `/exec` URL keeps running the previous version until that new version is deployed.

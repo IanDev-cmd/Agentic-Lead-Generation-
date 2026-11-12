@@ -16,6 +16,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from fallback.config import Settings, is_placeholder
+from fallback.decide import _redact
 from fallback.quota import GroundingQuota, QuotaExceeded
 
 log = logging.getLogger("fallback.pipeline")
@@ -238,7 +239,10 @@ def finish(settings: Settings, record: dict) -> str:
 def _write_webhook_result(settings: Settings, payload: dict) -> None:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     safe = {key: value for key, value in payload.items() if key != "secret"}
-    (settings.output_dir / "last-webhook.json").write_text(json.dumps(safe, indent=2), encoding="utf-8")
+    text = json.dumps(safe, indent=2)
+    if settings.webhook_secret:
+        text = text.replace(settings.webhook_secret, "[redacted]")
+    (settings.output_dir / "last-webhook.json").write_text(text, encoding="utf-8")
 
 
 class _ManualRedirect(urllib.request.HTTPRedirectHandler):
@@ -325,9 +329,10 @@ def post_webhook(settings: Settings, record: dict) -> None:
             "query": record["query"],
             "seller": {"name": settings.seller_name, "offering": settings.offering},
             "markdown": record["markdown"],
+            "secret": settings.webhook_secret,
         }
     ).encode("utf-8")
-    headers = {"Content-Type": "application/json", "X-Webhook-Secret": settings.webhook_secret}
+    headers = {"Content-Type": "application/json"}
     delay = 1.0
     last_error: Exception | None = None
     for attempt in range(1, 5):
@@ -345,18 +350,22 @@ def post_webhook(settings: Settings, record: dict) -> None:
                 settings,
                 {"ok": True, "synced": True, "interactionId": record["interactionId"], "appsScript": payload},
             )
-            log.info("Webhook accepted the report: %s", json.dumps({k: payload[k] for k in payload if k != "secret"}))
+            accepted = json.dumps({k: payload[k] for k in payload if k != "secret"})
+            if settings.webhook_secret:
+                accepted = accepted.replace(settings.webhook_secret, "[redacted]")
+            log.info("Webhook accepted the report: %s", accepted)
             return
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, PipelineError) as exc:
             last_error = exc
             retryable = _retryable(exc)
             if not retryable or attempt == 4:
                 break
-            log.warning("Webhook attempt %s failed: %s", attempt, exc)
+            log.warning("Webhook attempt %s failed: %s", attempt, _redact(str(exc), settings.webhook_secret))
             time.sleep(delay)
             delay = min(16.0, delay * 2)
-    _write_webhook_result(settings, {"ok": False, "synced": False, "error": f"Webhook failed: {last_error}"})
-    raise PipelineError(f"Webhook failed: {last_error}")
+    failure = _redact(str(last_error), settings.webhook_secret)
+    _write_webhook_result(settings, {"ok": False, "synced": False, "error": f"Webhook failed: {failure}"})
+    raise PipelineError(f"Webhook failed: {failure}")
 
 
 def render_markdown(leads: list[dict]) -> str:

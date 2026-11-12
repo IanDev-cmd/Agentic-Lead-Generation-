@@ -374,6 +374,12 @@ function saveReport(config, record) {
   return markdownPath;
 }
 
+function hideSecret(text, secret) {
+  const value = String(text ?? '');
+  if (!secret) return value;
+  return value.split(secret).join('[redacted]');
+}
+
 async function postWebhook(config, payload) {
   let delay = 1000;
   let lastError;
@@ -392,7 +398,7 @@ async function postWebhook(config, payload) {
       lastError = error;
       const retryable = Boolean(error.retryable) || isRetryable(error);
       if (!retryable || attempt === 4) break;
-      console.warn(`Webhook attempt ${attempt} failed: ${error.message}. Retrying in ${delay}ms.`);
+      console.warn(`Webhook attempt ${attempt} failed: ${hideSecret(error.message, config.webhookSecret)}. Retrying in ${delay}ms.`);
       await sleep(delay);
       delay = Math.min(16_000, delay * 2);
     }
@@ -405,7 +411,10 @@ function writeWebhookResult(config, payload) {
   mkdirSync(config.outputDir, { recursive: true });
   const safe = { ...payload };
   delete safe.secret;
-  writeFileSync(path.join(config.outputDir, 'last-webhook.json'), JSON.stringify(safe, null, 2));
+  writeFileSync(
+    path.join(config.outputDir, 'last-webhook.json'),
+    hideSecret(JSON.stringify(safe, null, 2), config.webhookSecret),
+  );
 }
 
 function delegateToFallback() {
@@ -460,16 +469,21 @@ async function main() {
       markdown: record.markdown,
     });
     writeWebhookResult(config, { ok: true, synced: true, interactionId: record.interactionId, appsScript: result });
-    console.log(JSON.stringify(result, null, 2));
+    console.log(hideSecret(JSON.stringify(result, null, 2), config.webhookSecret));
   } catch (error) {
-    writeWebhookResult(config, { ok: false, synced: false, error: error.message || 'Webhook failed.' });
+    writeWebhookResult(config, {
+      ok: false,
+      synced: false,
+      error: hideSecret(error.message || 'Webhook failed.', config.webhookSecret),
+    });
     throw error;
   }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   main().catch((error) => {
-    console.error(error?.stack || error?.message || error);
+    const secret = (process.env.WEBHOOK_SECRET || '').trim();
+    console.error(hideSecret(error?.stack || error?.message || error, secret));
     if (activeInteractionId) {
       console.error(`Resume with RESUME_INTERACTION_ID=${activeInteractionId}`);
     }

@@ -116,15 +116,44 @@ test('production refuses writes until a desk token is set', () => {
   assert.equal(deskAuthorized('', '', false), true);
 });
 
-test('webhook callers do not put the secret in the JSON body', () => {
+test('webhook callers put the secret in the JSON body', () => {
   const index = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const script = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const python = readFileSync(new URL('../fallback/pipeline.py', import.meta.url), 'utf8');
+  const webhook = readFileSync(new URL('../lib/webhook.js', import.meta.url), 'utf8');
+  const decide = readFileSync(new URL('../fallback/decide.py', import.meta.url), 'utf8');
   const desk = readFileSync(new URL('../lib/desk-run.js', import.meta.url), 'utf8');
-  assert.equal(index.includes('secret: config.webhookSecret'), false);
-  assert.equal(script.includes('body.secret'), false);
-  assert.equal(python.includes('"secret": settings.webhook_secret'), false);
-  assert.equal(python.includes('X-Webhook-Secret'), true);
+  const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(webhook, /JSON\.stringify\(\{ \.\.\.payload, secret \}\)/);
+  assert.equal(webhook.includes('X-Webhook-Secret'), false);
+  assert.equal(webhook.includes('console.'), false);
+  assert.equal(python.includes('"secret": settings.webhook_secret'), true);
+  assert.equal(python.includes('X-Webhook-Secret'), false);
+  assert.equal(python.includes('if key != "secret"'), true);
+  assert.equal(python.includes('if k != "secret"'), true);
+  assert.match(decide, /text\.replace\(secret, "\[redacted\]"\)/);
+  assert.equal(script.includes('X-Webhook-Secret'), false);
+  assert.equal(script.includes('e.headers'), false);
+  assert.match(script, /providedSecret_\(e, body\)/);
+  const reader = script.slice(script.indexOf('function providedSecret_'), script.indexOf('function secretField_'));
+  assert.ok(reader.indexOf('parsePostData_') < reader.indexOf('parameter.secret'));
+  assert.match(script, /e\.postData\.contents/);
+  assert.match(script, /parameter\.secret/);
+  assert.match(script, /catch \(err\) \{\s*return null;/);
+  const loggedSecret = python.split('\n').filter((line) => (
+    /log\.(info|warning|error|debug)/.test(line)
+    && line.includes('webhook_secret')
+    && !line.includes('_redact')
+  ));
+  assert.deepEqual(loggedSecret, []);
+  const loggedIndex = index.split('\n').filter((line) => (
+    line.includes('console.') && line.includes('webhookSecret') && !line.includes('hideSecret')
+  ));
+  assert.deepEqual(loggedIndex, []);
+  const loggedServer = server.split('\n').filter((line) => (
+    line.includes('console.') && /WEBHOOK_SECRET|webhookSecret|GOOGLE_WEBHOOK_URL/.test(line)
+  ));
+  assert.deepEqual(loggedServer, []);
   assert.equal(script.includes('findDraftBySubject_'), true);
   assert.equal(script.includes('findOpenTask_'), true);
   assert.equal(script.includes('sheetKey_'), true);
@@ -227,10 +256,43 @@ test('the desk API returns leads and rejects a missing token', async () => {
   process.env.DESK_TOKEN = '';
 });
 
+function readRaw(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(chunk));
+    request.on('error', reject);
+    request.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+  });
+}
+
+function jsonSecret(raw) {
+  try {
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return '';
+    return String(parsed.secret ?? '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function responseHides(value, secret) {
+  assert.equal(JSON.stringify(value).includes(secret), false);
+}
+
 test('an Apps Script redirect is read with GET before a second POST', async () => {
   const { createServer } = await import('node:http');
   const { postAppsScript } = await import('../lib/webhook.js');
-  const server = createServer((request, response) => {
+  const secret = 'abcdefghijklmnop';
+  const posts = [];
+  const server = createServer(async (request, response) => {
+    const raw = await readRaw(request);
+    if (request.method === 'POST') {
+      posts.push({
+        secret: jsonSecret(raw),
+        header: request.headers['x-webhook-secret'] || '',
+        type: request.headers['content-type'] || '',
+      });
+    }
     if (request.url === '/exec') {
       response.writeHead(302, { Location: '/echo' });
       response.end();
@@ -241,14 +303,17 @@ test('an Apps Script redirect is read with GET before a second POST', async () =
       response.end('<!DOCTYPE html><html><body>Moved</body></html>');
       return;
     }
-    const ok = request.method === 'POST' && request.headers['x-webhook-secret'] === 'abcdefghijklmnop';
+    const encoded = JSON.stringify({ ok: jsonSecret(raw) === secret });
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ ok }));
+    response.end(encoded);
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
-  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
+  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, secret, { action: 'links' });
   assert.equal(result.body.ok, true);
+  responseHides(result, secret);
+  assert.equal(posts.length, 2);
+  assert.equal(posts.every((post) => post.secret === secret && post.header === '' && post.type.includes('application/json')), true);
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
 });
@@ -256,7 +321,16 @@ test('an Apps Script redirect is read with GET before a second POST', async () =
 test('the echo page is used when it already contains the JSON', async () => {
   const { createServer } = await import('node:http');
   const { postAppsScript } = await import('../lib/webhook.js');
-  const server = createServer((request, response) => {
+  const secret = 'abcdefghijklmnop';
+  const posts = [];
+  const server = createServer(async (request, response) => {
+    const raw = await readRaw(request);
+    if (request.method === 'POST') {
+      posts.push({
+        secret: jsonSecret(raw),
+        header: request.headers['x-webhook-secret'] || '',
+      });
+    }
     if (request.url === '/exec') {
       response.writeHead(302, { Location: '/echo' });
       response.end();
@@ -272,9 +346,116 @@ test('the echo page is used when it already contains the JSON', async () => {
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
-  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, 'abcdefghijklmnop', { action: 'links' });
+  const result = await postAppsScript(`http://127.0.0.1:${port}/exec`, secret, { action: 'links' });
   assert.equal(result.body.ok, true);
   assert.deepEqual(result.body.items, []);
+  responseHides(result, secret);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].secret, secret);
+  assert.equal(posts[0].header, '');
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
+});
+
+test('an Apps Script mock that ignores headers authorizes the body secret', async () => {
+  const { createServer } = await import('node:http');
+  const { postAppsScript } = await import('../lib/webhook.js');
+  const expected = 'abcdefghijklmnop';
+  const wrong = 'abcdefghijklmnoX';
+  const responses = [];
+  const server = createServer(async (request, response) => {
+    const raw = await readRaw(request);
+    const provided = jsonSecret(raw);
+    const payload = secretsMatch(provided, expected)
+      ? { ok: true, service: 'lead-generation-webhook' }
+      : { ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' };
+    const encoded = JSON.stringify(payload);
+    responses.push(encoded);
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(encoded);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const url = `http://127.0.0.1:${port}/exec`;
+  try {
+    const good = await postAppsScript(url, expected, { action: 'links' });
+    assert.equal(good.status, 200);
+    assert.equal(good.body.ok, true);
+    responseHides(good, expected);
+
+    const rejected = await postAppsScript(url, wrong, { action: 'links' });
+    assert.equal(rejected.status, 401);
+    assert.equal(rejected.body.ok, false);
+    assert.match(rejected.body.error, /^Unauthorized webhook/);
+    responseHides(rejected, wrong);
+    responseHides(rejected, expected);
+
+    const missing = await postAppsScript(url, '', { action: 'links' });
+    assert.equal(missing.status, 401);
+    assert.match(missing.body.error, /^Unauthorized webhook/);
+
+    const headerOnly = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': expected },
+      body: JSON.stringify({ action: 'links' }),
+    });
+    const headerBody = await headerOnly.json();
+    assert.equal(headerBody.ok, false);
+    assert.match(headerBody.error, /^Unauthorized webhook/);
+    responseHides(headerBody, expected);
+
+    const bodyWins = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': wrong },
+      body: JSON.stringify({ action: 'links', secret: expected }),
+    });
+    const bodyWinsJson = await bodyWins.json();
+    assert.equal(bodyWinsJson.ok, true);
+    responseHides(bodyWinsJson, expected);
+    assert.equal(responses.every((body) => !body.includes(expected) && !body.includes(wrong)), true);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('a GET health check authorizes the query secret and does not echo it', async () => {
+  const { createServer } = await import('node:http');
+  const secret = 'abc/defghijklmno';
+  const server = createServer(async (request, response) => {
+    const provided = String(new URL(request.url, 'http://127.0.0.1').searchParams.get('secret') || '').trim();
+    const payload = secretsMatch(provided, secret)
+      ? { ok: true, service: 'lead-generation-webhook', spreadsheetConfigured: false }
+      : { ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' };
+    const encoded = JSON.stringify(payload);
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(encoded);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const target = new URL(`http://127.0.0.1:${port}/exec`);
+    target.searchParams.set('secret', secret);
+    const good = await fetch(target);
+    const goodBody = await good.json();
+    assert.equal(goodBody.ok, true);
+    responseHides(goodBody, secret);
+
+    const missingUrl = new URL(`http://127.0.0.1:${port}/exec`);
+    const missing = await fetch(missingUrl);
+    const missingBody = await missing.json();
+    assert.equal(missingBody.ok, false);
+    assert.match(missingBody.error, /^Unauthorized webhook/);
+
+    const wrongUrl = new URL(`http://127.0.0.1:${port}/exec`);
+    wrongUrl.searchParams.set('secret', 'abcdefghijklmnoX');
+    const wrong = await fetch(wrongUrl);
+    const wrongBody = await wrong.json();
+    assert.equal(wrongBody.ok, false);
+    assert.match(wrongBody.error, /^Unauthorized webhook/);
+    responseHides(wrongBody, 'abcdefghijklmnoX');
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

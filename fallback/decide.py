@@ -86,8 +86,9 @@ def probe_key(settings: Settings) -> str:
         )
         return "ok"
     except Exception as exc:  # noqa: BLE001 - the SDK raises several error types
-        text = str(exc).lower()
-        log.warning("Key probe failed: %s", _redact(text, settings.api_key))
+        raw = str(exc)
+        text = raw.lower()
+        log.warning("Key probe failed: %s", _redact(raw, settings.api_key))
         if any(token in text for token in ("api key", "api_key", "invalid", "unauthorized", "401", "permission denied")):
             if "billing" not in text:
                 return "invalid_key"

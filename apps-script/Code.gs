@@ -4,6 +4,8 @@
  * Deploy as a web app that executes as you, accessible to anyone.
  * The shared WEBHOOK_SECRET is the access control, because Apps Script
  * anonymous web apps do not provide Google-authenticated callers for a local Node process.
+ * Web apps also do not expose HTTP request headers, so doPost reads `secret`
+ * from the JSON body and doGet reads `secret` from the query string.
  *
  * Run install() from the editor once and approve scopes before the first POST.
  * Drafts are created with GmailApp.createDraft. MailApp only sends mail, so it is not used.
@@ -89,7 +91,7 @@ function handlePost_(e) {
   if (!config.secret) {
     return json_({ ok: false, error: 'WEBHOOK_SECRET is not set. Run install(), then set the script property.' });
   }
-  if (!secretsMatch_(providedSecret_(e), config.secret)) {
+  if (!secretsMatch_(providedSecret_(e, body), config.secret)) {
     return json_({ ok: false, error: 'Unauthorized webhook. Render WEBHOOK_SECRET does not match this script property.' });
   }
 
@@ -258,9 +260,27 @@ function readBody_(e) {
   }
 }
 
-function providedSecret_(e) {
-  var headers = (e && e.headers) || {};
-  return String(headers['X-Webhook-Secret'] || headers['x-webhook-secret'] || '').trim();
+function providedSecret_(e, parsed) {
+  // Body field first. Query param is the doGet health check. Headers are not available.
+  var fromBody = secretField_(parsed === undefined ? parsePostData_(e) : parsed);
+  if (fromBody) return fromBody;
+  var parameter = (e && e.parameter) || {};
+  return String(parameter.secret == null ? '' : parameter.secret).trim();
+}
+
+function secretField_(parsed) {
+  if (!parsed || typeof parsed !== 'object') return '';
+  return String(parsed.secret == null ? '' : parsed.secret).trim();
+}
+
+function parsePostData_(e) {
+  var raw = e && e.postData && e.postData.contents;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
 }
 
 function secretsMatch_(provided, expected) {

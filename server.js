@@ -9,6 +9,9 @@ import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
+import QRCode from 'qrcode';
+import { broadcastPush, sendPushNotification, validPushSubscription, vapidPublicKey } from './lib/push.js';
+import { removeSubscription, removeSubscriptionsForUser, upsertSubscription } from './lib/push-store.js';
 
 const root = process.cwd();
 const webRoot = path.resolve(root, 'web');
@@ -23,6 +26,8 @@ const TYPES = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.svg': 'image/svg+xml; charset=utf-8',
 };
 
 let mintedDeskToken = '';
@@ -50,18 +55,43 @@ function deskCookie() {
   return `desk=${encodeURIComponent(expectedDeskToken())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${secure}`;
 }
 
-function send(response, status, payload, type = 'application/json; charset=utf-8') {
+function send(response, status, payload, type = 'application/json; charset=utf-8', cache = 'no-store') {
   const body = Buffer.isBuffer(payload)
     ? payload
     : Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload));
   response.writeHead(status, {
     'Content-Type': type,
     'Content-Length': body.length,
-    'Cache-Control': 'no-store',
+    'Cache-Control': cache,
     'X-Content-Type-Options': 'nosniff',
     'Set-Cookie': deskCookie(),
   });
   response.end(body);
+}
+
+function publicOrigin(request) {
+  const configured = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+  if (/^https?:\/\//i.test(configured)) return configured;
+  const host = String(request.headers['x-forwarded-host'] || request.headers.host || 'localhost').split(',')[0].trim();
+  const proto = String(request.headers['x-forwarded-proto'] || 'http').split(',')[0].trim() === 'https' ? 'https' : 'http';
+  if (!/^[A-Za-z0-9.:-]+$/.test(host)) return 'http://localhost';
+  return `${proto}://${host}`;
+}
+
+function notifyDesk(payload) {
+  try {
+    Promise.resolve(broadcastPush(root, payload)).catch(() => {});
+  } catch {
+    // A push failure does not change the desk result.
+  }
+}
+
+const pushHits = [];
+function pushLimited(now = Date.now()) {
+  while (pushHits.length && now - pushHits[0] > 10 * 60 * 1000) pushHits.shift();
+  if (pushHits.length >= 8) return true;
+  pushHits.push(now);
+  return false;
 }
 
 function limited(now = Date.now()) {
@@ -127,6 +157,20 @@ async function postApprove(company, interactionId, seller = {}) {
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     send(response, 200, { ok: true, service: 'lead-desk' });
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/qr.svg') {
+    try {
+      const svg = await QRCode.toString(`${publicOrigin(request)}/`, {
+        type: 'svg',
+        margin: 1,
+        width: 180,
+        color: { dark: '#07161e', light: '#ffffff' },
+      });
+      send(response, 200, svg, 'image/svg+xml; charset=utf-8', 'no-cache');
+    } catch {
+      send(response, 500, { ok: false, error: 'The QR code could not be drawn.' });
+    }
     return;
   }
   if (request.method === 'GET' && url.pathname === '/api/leads') {
@@ -233,6 +277,13 @@ async function handleApi(request, response, url) {
         tabular: built.tabular,
       });
       const leads = rememberLeads(root, answer.leads);
+      if (leads.length) {
+        notifyDesk({
+          title: 'New leads',
+          body: `${leads.length} ${leads.length === 1 ? 'company' : 'companies'} came back from the question.`,
+          data: { url: '/?view=pipeline' },
+        });
+      }
       send(response, 200, { ok: true, explanation: answer.explanation, leads });
     } catch (error) {
       const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
@@ -267,6 +318,15 @@ async function handleApi(request, response, url) {
       leads: stored,
     };
     runs.set(id, record);
+    notifyDesk(record.ok ? {
+      title: 'Batch accepted',
+      body: 'Apps Script accepted the lead batch.',
+      data: { url: '/?view=pipeline' },
+    } : {
+      title: 'Batch not written',
+      body: record.error || 'The batch was not written to Sheets.',
+      data: { url: '/?view=studio' },
+    });
     send(response, record.ok ? 200 : 424, record);
     return;
   }
@@ -300,10 +360,89 @@ async function handleApi(request, response, url) {
         name: profile.SELLER_NAME || '',
         offering: profile.SELLER_OFFERING || '',
       });
+      if (outcome.body?.ok) {
+        notifyDesk({
+          title: 'Draft saved',
+          body: `${lead.company} is in Gmail. The pitch was not sent.`,
+          data: { url: '/?view=draft' },
+        });
+      }
       send(response, outcome.status, outcome.body);
     } catch {
       send(response, 502, { ok: false, sent: false, error: 'The approve call did not reach Apps Script. Nothing was sent.' });
     }
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/push/vapid') {
+    const publicKey = vapidPublicKey();
+    if (!publicKey) {
+      send(response, 424, { ok: false, error: 'VAPID_PUBLIC_KEY is empty. Notifications stay off.' });
+      return;
+    }
+    send(response, 200, { ok: true, publicKey }, 'application/json; charset=utf-8', 'no-cache');
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/push/subscribe') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The subscription was not JSON.' });
+      return;
+    }
+    const record = validPushSubscription(body);
+    if (!record) {
+      send(response, 422, { ok: false, error: 'That push subscription could not be saved.' });
+      return;
+    }
+    upsertSubscription(root, record);
+    send(response, 200, { ok: true });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/push/unsubscribe') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The unsubscribe body was not JSON.' });
+      return;
+    }
+    const endpoint = String(body.endpoint || body.subscription?.endpoint || '');
+    const userId = String(body.userId || '');
+    if (endpoint) removeSubscription(root, endpoint);
+    else if (userId) removeSubscriptionsForUser(root, userId);
+    else {
+      send(response, 422, { ok: false, error: 'No subscription was identified.' });
+      return;
+    }
+    send(response, 200, { ok: true });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/push/test') {
+    if (pushLimited()) {
+      send(response, 429, { ok: false, error: 'Too many test alerts. Wait a few minutes.' });
+      return;
+    }
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The test alert was not JSON.' });
+      return;
+    }
+    const userId = String(body.userId || '').trim();
+    if (!/^[A-Za-z0-9_-]{8,80}$/.test(userId)) {
+      send(response, 422, { ok: false, error: 'That device id cannot receive a test alert.' });
+      return;
+    }
+    const result = await sendPushNotification(root, userId, {
+      title: 'Lead desk',
+      body: 'Notifications are on for this desk.',
+      data: { url: '/' },
+    });
+    send(response, result.ok && result.sent > 0 ? 200 : 424, result.ok && result.sent > 0
+      ? result
+      : { ...result, ok: false, error: result.error || 'No device received the test alert.' });
     return;
   }
   send(response, 404, { ok: false, error: 'No such desk route.' });
@@ -342,7 +481,11 @@ async function handleStatic(response, pathname) {
   }
   try {
     const file = await readFile(target);
-    send(response, 200, file, TYPES[path.extname(target).toLowerCase()] || 'application/octet-stream');
+    const ext = path.extname(target).toLowerCase();
+    const cache = requested === '/sw.js' || requested.endsWith('.html') || requested.endsWith('.webmanifest')
+      ? 'no-cache'
+      : 'public, max-age=86400';
+    send(response, 200, file, TYPES[ext] || 'application/octet-stream', cache);
   } catch {
     send(response, 404, { ok: false, error: 'That file is not on the desk.' });
   }

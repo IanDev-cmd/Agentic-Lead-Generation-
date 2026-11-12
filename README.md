@@ -41,6 +41,8 @@ Apps Script consumer executions are limited to about six minutes. The webhook pr
 
 The web app has to be deployed as "Anyone" so Node can POST without a Google user session. `WEBHOOK_SECRET` is checked before any write. Use a random string of at least 16 characters, put the same value in `.env` and in Apps Script script properties, and treat the `/exec` URL like a credential.
 
+Apps Script web apps cannot read HTTP request headers, so the secret is not sent as a header. Callers put it in the POST JSON body (`secret`) over HTTPS. The GET health check is the only request that passes it as a query parameter. Do not write that full URL to logs, tickets, or chat. Responses never include the secret.
+
 The research prompt tells the agent to leave unknown emails as `unknown`. The script does not invent a recipient. When no public email exists, the draft is addressed to the script owner and prefixed `[Needs recipient]`. Nothing is sent.
 
 Sheet cells that start with `=`, `+`, `-`, or `@` are prefixed so a model-written table cannot become a formula.
@@ -84,7 +86,9 @@ Mode order is `REPORT_FILE`, then `DRY_RUN`, then `RESUME_INTERACTION_ID`, then 
 5. Run `install` and approve the scopes. The log prints the spreadsheet URL and the "Leads Briefings" folder URL.
 6. In Project Settings > Script properties, set `WEBHOOK_SECRET` to the same value as `.env`. Optional: `HOME_BASE_ADDRESS` (used for distance), `SELLER_NAME`, `SELLER_OFFERING`, `CALENDAR_LOOKAHEAD_DAYS`, `MAX_LEADS`, `TASKLIST_ID`.
 7. Deploy > New deployment > Web app. Execute as **Me**. Who has access: **Anyone**. Copy the URL that ends in `/exec`.
-8. Open that URL in a browser. The JSON says whether the secret, spreadsheet, and folder are configured. It does not reveal the secret.
+8. Open that URL in a browser with the secret on the query string: `/exec?secret=` plus the URL-encoded value. The JSON says whether the spreadsheet and folder are configured. It does not reveal the secret. Do not log or share that full URL.
+
+After any edit to `Code.gs`, redeploy or the live `/exec` URL keeps running the previous version: Deploy > Manage deployments > Edit > Version: New version > Deploy.
 
 `install` creates the spreadsheet and folder on first run and stores their ids in script properties. Run it before the first POST so the OAuth consent happens in the editor. A POST that arrives before consent gets an HTML error page; Node reports that as a non-JSON webhook response and leaves `output/last-report.md` in place.
 

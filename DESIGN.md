@@ -15,7 +15,7 @@ A batch is one research run. The desk never replaces the page with a spinner. Th
 | Planning | Blue pill, "Planning the search" | Flash splits the ICP into three public queries, or Deep Research is building its plan |
 | Searching | Blue pill, "Searching public sources" | Gemini Search grounding, or the Deep Research read loop |
 | Drafting | Blue pill, "Drafting the briefing" | Markdown table and High-priority briefing |
-| Syncing | Green pill after the webhook returns | Apps Script has appended the sheet rows |
+| Syncing | Green pill after the webhook returns | Apps Script has appended the sheet rows. The POST body carries `secret` because Apps Script cannot read headers. |
 
 Completed phases stay green. The current phase is the only one that pulses, and the pulse is removed when the system asks for reduced motion. A live region repeats the same sentence for assistive technology.
 
