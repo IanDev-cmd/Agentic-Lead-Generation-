@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Lead desk">
 <title>Lead desk</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/alpha.svg" type="image/svg+xml">
 <link rel="icon" href="/icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -146,6 +147,34 @@
   #gate .pager { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
   #gate .pager button { width: 7px; height: 7px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,0.45); }
   #gate .pager button.on { background: #fff; }
+  #gate .welcome-hero {
+    position: absolute; left: 62%; top: 40%; z-index: 2;
+    width: min(460px, 54%); aspect-ratio: 1;
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+  #gate .welcome-orb { position: absolute; inset: 0; }
+  #gate .welcome-orb::before {
+    content: ""; position: absolute; inset: 6%; border-radius: 50%;
+    background: radial-gradient(circle, rgba(7, 22, 30, 0.42), rgba(7, 22, 30, 0) 68%);
+  }
+  #gate .welcome-orb canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #gate .welcome-logo {
+    position: absolute; left: 50%; top: 50%; width: 84px; height: 84px;
+    transform: translate(-50%, -50%); display: grid; place-items: center;
+    background: rgba(255,255,255,0.94); color: #16181d; border-radius: 22px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+  }
+  #gate .welcome-logo svg { width: 54px; height: 54px; }
+  @media (display-mode: standalone) {
+    #gate.scene { padding: 0; }
+    #gate .card {
+      width: 100%; height: 100dvh; min-height: 100dvh; border-radius: 0; box-shadow: none;
+    }
+    #gate .welcome-hero { width: min(640px, 86vw); top: 46%; left: 50%; }
+    #gate .nav, #gate .rail, #gate .popular, #gate .edge-tools { display: none; }
+    #gate .copy { left: 50%; top: auto; bottom: 36px; transform: translateX(-50%); width: auto; text-align: center; }
+    #gate .copy h1, #gate .copy p { display: none; }
+  }
 
   .desk {
     min-height: 100dvh; font-family: Inter, Arial, sans-serif; color: #fff;
@@ -170,8 +199,9 @@
   .top .settings-btn svg { fill: none; stroke: currentColor; }
   .top .avatar {
     width: 34px; height: 34px; border-radius: 50%; background: #1a73e8; color: #fff;
-    border: 2px solid #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px;
+    border: 2px solid #fff; display: grid; place-items: center;
   }
+  .top .avatar svg { width: 20px; height: 20px; }
   .apps-menu {
     position: fixed; top: 58px; right: 68px; z-index: 30; min-width: 220px;
     background: #fff; color: var(--ink); border-radius: 16px; padding: 8px;
@@ -369,7 +399,7 @@
   .studio-dock {
     flex: 0 0 auto;
     margin: 0;
-    padding: 8px 32px 0;
+    padding: 8px 32px 18px;
     background: #fff;
   }
   .studio-ask {
@@ -853,6 +883,13 @@
 <section id="gate" class="scene" aria-label="Lead desk">
   <section class="card" id="landCard">
     <div class="shade" aria-hidden="true"></div>
+    <div class="welcome-hero">
+      <div class="welcome-orb">
+        <canvas id="welcomeFrom" aria-hidden="true"></canvas>
+        <canvas id="welcomeTo" aria-hidden="true"></canvas>
+      </div>
+      <div class="welcome-logo" id="welcomeLogo"></div>
+    </div>
     <header class="nav">
       <div class="brand">Lead</div>
       <nav class="links" aria-label="Landing slides">
@@ -898,7 +935,7 @@
     <button type="button" class="icon-btn" id="appsBtn" aria-label="Open the page menu" aria-expanded="false" aria-controls="appsMenu">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     </button>
-    <span class="avatar" aria-hidden="true">L</span>
+    <span class="avatar" id="deskLogo" aria-hidden="true"></span>
     <button type="button" class="settings-btn" id="deskSettingsBtn" aria-label="Settings" aria-expanded="false" aria-controls="settingsPop">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
     </button>
@@ -941,8 +978,7 @@
         <label class="src-row"><input type="checkbox" id="selectAll"> Select all</label>
         <div id="sourceList"></div>
         <input id="sourceFiles" type="file" multiple hidden>
-        <details class="batch">
-          <summary>Batch profile</summary>
+        <div hidden id="batchProfile">
           <label>Business <input id="sellerName" placeholder="The company running this search" autocomplete="organization"></label>
           <label>Offering <input id="offering" placeholder="What that company sells"></label>
           <label>Profile <input id="icp" placeholder="Who they want to reach"></label>
@@ -958,8 +994,7 @@
               <option value="desk" selected>Saved table</option>
             </select>
           </label>
-          <p class="meta">This profile is saved in this browser and sent with the run. It is not a server setting. The button posts the saved table to Apps Script. It does not call Gemini, and it does not send mail.</p>
-        </details>
+        </div>
       </aside>
       <section class="panel doc" aria-label="Lead sheet">
         <div class="doc-main">
@@ -1160,6 +1195,7 @@ const brandPath = {
   gmail: "M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"
 };
 const brandFill = { sheets: "#0F9D58", docs: "#4285F4", drive: "#FFBA00", gmail: "#EA4335" };
+const alphaMark = `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M41 27c0-8.2-7.6-14-15.4-12.2C16.4 16.6 12 24.8 14 33.2c2.2 9.2 11.2 14.2 20.2 12.2 5.4-1.2 9.2-5.2 10.2-9.4" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/><path d="M40 11v42" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>`;
 const glyph = {
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
@@ -1305,7 +1341,9 @@ document.getElementById("toolGrid").innerHTML = tools.map((item) =>
   const button = document.querySelectorAll(".trend-share button")[index];
   if (button) button.innerHTML = icon(name);
 });
-document.getElementById("docMark").innerHTML = icon("sheets");
+document.getElementById("docMark").innerHTML = alphaMark;
+document.getElementById("deskLogo").innerHTML = alphaMark;
+document.getElementById("welcomeLogo").innerHTML = alphaMark;
 document.getElementById("appsMenu").innerHTML = menuItems.map(([view, label]) =>
   `<button type="button" data-view="${view}">${label}</button>`
 ).join("");
@@ -1333,6 +1371,7 @@ function openDesk() {
   gate.hidden = true;
   document.getElementById("desk").hidden = false;
   show("studio");
+  stopWelcomeOrb();
   document.getElementById("deskTitle").focus();
 }
 const sheetMeta = {
@@ -2129,7 +2168,7 @@ let thinkStarted = 0;
 let thinkLineAt = -1;
 const thinkHold = 2200;
 const thinkFade = 900;
-function paintThinkCanvas(canvas, preset, time, alpha) {
+function paintThinkCanvas(canvas, preset, time, alpha, lightInk) {
   const logical = 64;
   const css = canvas.clientWidth || 420;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -2142,8 +2181,35 @@ function paintThinkCanvas(canvas, preset, time, alpha) {
   ctx.setTransform(px / logical, 0, 0, px / logical, 0, 0);
   ctx.clearRect(0, 0, logical, logical);
   ctx.globalAlpha = alpha;
-  window.Orbs.MODE_DRAWS[preset.mode](ctx, logical, time * preset.speed, false, preset.opts);
+  window.Orbs.MODE_DRAWS[preset.mode](ctx, logical, time * preset.speed, Boolean(lightInk), preset.opts);
   ctx.globalAlpha = 1;
+}
+let welcomeFrame = 0;
+function stopWelcomeOrb() {
+  cancelAnimationFrame(welcomeFrame);
+  welcomeFrame = 0;
+}
+function startWelcomeOrb() {
+  if (!window.Orbs || document.getElementById("gate").hidden) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const started = performance.now();
+  const tick = (now) => {
+    if (document.getElementById("gate").hidden) return;
+    const elapsed = Math.max(0, now - started);
+    const span = reduce ? 4000 : thinkHold + thinkFade;
+    const slot = elapsed % (span * thinkStates.length);
+    const index = Math.floor(slot / span);
+    const local = slot - index * span;
+    const blend = reduce || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
+    const from = window.Orbs.resolvePreset(thinkStates[index], 64);
+    const to = window.Orbs.resolvePreset(thinkStates[(index + 1) % thinkStates.length], 64);
+    const t = reduce ? 1.4 : elapsed / 1000;
+    paintThinkCanvas(document.getElementById("welcomeFrom"), from, t, 1 - blend, true);
+    paintThinkCanvas(document.getElementById("welcomeTo"), to, t, blend > 0 ? blend : 0, true);
+    welcomeFrame = requestAnimationFrame(tick);
+  };
+  stopWelcomeOrb();
+  tick(started);
 }
 function startThinkOrb() {
   const stage = document.getElementById("thinkStage");
@@ -2297,10 +2363,12 @@ async function loadDesk() {
     gate.hidden = true;
     document.getElementById("desk").hidden = false;
     show(requested);
+    stopWelcomeOrb();
     return;
   }
   if (!document.getElementById("view-studio").hidden) paintView("studio");
 }
+startWelcomeOrb();
 loadDesk().catch(() => toast("The lead list did not load. Nothing was written to Sheets."));
 </script>
 <script src="/pwa.js"></script>

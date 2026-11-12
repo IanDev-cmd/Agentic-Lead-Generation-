@@ -60,20 +60,32 @@ function png(size, paint) {
   ]);
 }
 
+function distToSegment(x, y, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = dx * dx + dy * dy || 1;
+  let t = ((x - x1) * dx + (y - y1) * dy) / len;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+}
+
+function alphaInk(x, y, size) {
+  const thick = size * 0.07;
+  const cx = size * 0.40;
+  const cy = size * 0.52;
+  const radius = size * 0.155;
+  const ring = Math.abs(Math.hypot(x - cx, y - cy) - radius) <= thick * 0.5;
+  const legX = cx + radius * 0.55;
+  const leg = distToSegment(x, y, legX, size * 0.16, legX, size * 0.84) <= thick * 0.5;
+  return ring || leg;
+}
+
 function icon(size, maskable) {
   const background = [7, 22, 30, 255];
   const radius = size * 0.22;
-  const margin = maskable ? 0.3 : 0.28;
-  const left = size * margin;
-  const top = size * margin;
-  const bottom = size * (1 - margin);
-  const right = size * (1 - margin);
-  const thick = size * 0.11;
   return png(size, (x, y) => {
     if (!maskable && !inRound(x + 0.5, y + 0.5, size, radius)) return [0, 0, 0, 0];
-    const stem = x >= left && x < left + thick && y >= top && y < bottom;
-    const foot = x >= left && x < right && y >= bottom - thick && y < bottom;
-    if (stem || foot) return [255, 255, 255, 255];
+    if (alphaInk(x + 0.5, y + 0.5, size)) return [255, 255, 255, 255];
     return background;
   });
 }
