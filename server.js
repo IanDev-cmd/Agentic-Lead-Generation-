@@ -55,17 +55,19 @@ function deskCookie() {
   return `desk=${encodeURIComponent(expectedDeskToken())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${secure}`;
 }
 
-function send(response, status, payload, type = 'application/json; charset=utf-8', cache = 'no-store') {
+function send(response, status, payload, type = 'application/json; charset=utf-8', cache = 'no-store', headers = null) {
   const body = Buffer.isBuffer(payload)
     ? payload
     : Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload));
-  response.writeHead(status, {
+  const fields = {
     'Content-Type': type,
     'Content-Length': body.length,
     'Cache-Control': cache,
     'X-Content-Type-Options': 'nosniff',
     'Set-Cookie': deskCookie(),
-  });
+  };
+  if (headers) Object.assign(fields, headers);
+  response.writeHead(status, fields);
   response.end(body);
 }
 
@@ -482,10 +484,18 @@ async function handleStatic(response, pathname) {
   try {
     const file = await readFile(target);
     const ext = path.extname(target).toLowerCase();
+    const vendor = requested.startsWith('/vendor/');
     const cache = requested === '/sw.js' || requested.endsWith('.html') || requested.endsWith('.webmanifest')
       ? 'no-cache'
       : 'public, max-age=86400';
-    send(response, 200, file, TYPES[ext] || 'application/octet-stream', cache);
+    send(
+      response,
+      200,
+      file,
+      TYPES[ext] || 'application/octet-stream',
+      cache,
+      vendor ? { 'Cache-Control': 'public, max-age=31536000, immutable' } : null,
+    );
   } catch {
     send(response, 404, { ok: false, error: 'That file is not on the desk.' });
   }

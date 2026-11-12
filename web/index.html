@@ -410,6 +410,7 @@
     box-sizing: border-box;
   }
   .studio-drawer.is-open { transform: translateX(0); }
+  .studio-drawer.is-wide { width: min(920px, 100%); }
   .studio-drawer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   .studio-drawer-bar button {
     border: 0;
@@ -455,6 +456,39 @@
   .map-list button:hover { background: #eef1f6; }
   .map-list small { display: block; color: #80868b; font: 400 12px Inter, sans-serif; }
   #studioDrawerBody > p { margin: 0 0 12px; font: 400 15px/1.55 Inter, sans-serif; color: #202124; }
+  .territory { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .territory-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .territory-tools, .territory-route { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .territory-tools button, .pin-card button, .territory-list button {
+    border: 0; background: #f1f3f4; border-radius: 999px; padding: 8px 14px;
+    font: 600 13px Inter, sans-serif; color: #202124; cursor: pointer;
+  }
+  .territory-note, .territory-route p { margin: 0; font: 400 13px/1.45 Inter, sans-serif; color: #3c4043; }
+  .territory-map { position: relative; height: min(420px, 58vh); min-height: 220px; border-radius: 16px; overflow: hidden; background: #e8eaed; }
+  .territory-map.leaflet-container { width: 100%; height: 100%; font: 12px/1.4 Inter, sans-serif; }
+  .territory-map.is-expanded { position: fixed; inset: 0; z-index: 80; width: 100%; height: 100%; min-height: 0; border-radius: 0; }
+  .territory-exit {
+    position: absolute; top: 12px; right: 12px; z-index: 1000;
+    border: 0; background: #fff; border-radius: 999px; padding: 8px 14px;
+    font: 600 13px Inter, sans-serif; color: #202124; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  }
+  .pin-card { display: flex; flex-direction: column; gap: 6px; max-width: 260px; font: 400 13px/1.4 Inter, sans-serif; color: #202124; }
+  .pin-card strong { font: 600 15px Inter, sans-serif; }
+  .pin-card .tag { align-self: flex-start; }
+  .pin-card a { color: #174ea6; }
+  .pin-card .pin-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pin-icon { background: transparent; border: 0; }
+  .you-dot { width: 16px; height: 16px; margin-left: -8px; margin-top: -8px; border-radius: 50%; background: #1a73e8; border: 2px solid #fff; box-shadow: 0 0 0 1px #1a73e8; }
+  .territory-list { display: flex; flex-direction: column; gap: 8px; }
+  .territory-list h3 { margin: 8px 0 0; font: 600 13px Inter, sans-serif; color: #3c4043; }
+  .territory-list button { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: 2px; background: #f7f8fa; border-radius: 14px; padding: 12px 14px; font: 600 14px Inter, sans-serif; color: #202124; }
+  .territory-list button small { font: 400 12px Inter, sans-serif; color: #80868b; }
+  .territory-list button:hover, .territory-list button:focus-visible { background: #eef1f6; outline: 2px solid #174ea6; }
+  @media (max-width: 420px) {
+    .territory-map { height: 240px; }
+    .territory-tools button, .pin-card button { min-height: 44px; }
+  }
 
   #view-lead { width: 100%; margin: 0; height: 100dvh; overflow: auto; padding: 64px 0 0; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
   .trend-wrap { position: relative; min-height: calc(100dvh - 64px); display: grid; place-items: center; padding: 28px 24px 48px; }
@@ -628,7 +662,12 @@
     to { stroke-dashoffset: 0; }
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes you-pulse {
+    from { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.55); }
+    to { box-shadow: 0 0 0 18px rgba(26, 115, 232, 0); }
+  }
   @media (prefers-reduced-motion: no-preference) {
+    .you-dot { animation: you-pulse 1.8s ease-out infinite; }
     .ico-bob { animation: bob 2.8s ease-in-out infinite; }
     .tile:nth-child(2) .ico-bob { animation-delay: .12s; }
     .tile:nth-child(3) .ico-bob { animation-delay: .24s; }
@@ -671,7 +710,7 @@
     .top { gap: 10px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .phase.on, .ico-bob, .spin, #gate .icon-btn svg, .studio-drawer { animation: none; transition: none; }
+    .phase.on, .ico-bob, .spin, .you-dot, #gate .icon-btn svg, .studio-drawer { animation: none; transition: none; }
   }
   @media (max-width: 800px) {
     .trend { grid-template-columns: 1fr; height: auto; min-height: 0; }
@@ -1056,6 +1095,7 @@
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <p class="status-live" id="live" aria-live="polite"></p>
+<script src="/territory.js"></script>
 <script>
 const brandPath = {
   sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
@@ -1234,7 +1274,7 @@ function openDesk() {
 }
 const sheetMeta = {
   google: ["Google Workspace", "Account files"],
-  map: ["Google Maps", "Territory"],
+  map: ["Territory", "Headquarters"],
   report: ["Google Docs", "Briefings"],
   slides: ["Google Slides", "Slide deck"],
   pipeline: ["Pipeline", "Lead pipeline"],
@@ -1267,9 +1307,7 @@ function drawerBody(name) {
     const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(statusTag(lead).label)}</td></tr>`).join("");
     return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
-  if (name === "map") {
-    return `<div class="map-list">${leads.map((lead) => `<button type="button" data-lead="1" data-id="${lead.id}"><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(lead.hq)} · ${escapeHtml(lead.coords)}</small></button>`).join("")}</div>`;
-  }
+  if (name === "map") return '<div class="territory"></div>';
   if (name === "report") {
     return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p><p>${escapeHtml(lead.hook || "No public hook. A briefing is not created.")}</p></article>`).join("");
   }
@@ -1296,22 +1334,37 @@ function mailBody() {
 function researchBody(heading, lede) {
   return `<p><b>${escapeHtml(heading)}</b></p><p>${escapeHtml(lede)}</p><div class="actions"><button type="button" data-sim="runResearch">Run research</button><button type="button" data-sim="simLimit">Show rate limit</button><button type="button" data-sim="simTimeout">Show timeout</button><button type="button" data-sim="simResume">Resume batch</button></div>`;
 }
+const inAppSheets = new Set(["map"]);
 function closeSheet() {
+  if (window.Territory) window.Territory.destroy();
   const drawer = document.getElementById("studioDrawer");
-  drawer.classList.remove("is-open");
+  drawer.classList.remove("is-open", "is-wide");
   drawer.setAttribute("aria-hidden", "true");
 }
 function openSheet(name) {
+  if (window.Territory) window.Territory.destroy();
   const pair = sheetMeta[name] || ["Studio", "Preview"];
   const drawer = document.getElementById("studioDrawer");
   document.getElementById("studioDrawerKicker").textContent = pair[0];
   document.getElementById("studioDrawerTitle").textContent = pair[1];
   document.getElementById("studioDrawerBody").innerHTML = drawerBody(name);
   bindLeadActions();
+  drawer.classList.toggle("is-wide", name === "map");
   drawer.setAttribute("aria-hidden", "false");
   drawer.classList.remove("is-open");
   void drawer.offsetWidth;
   drawer.classList.add("is-open");
+  if (name === "map" && window.Territory) {
+    window.Territory.mount(document.querySelector("#studioDrawerBody .territory"), {
+      getLeads: () => leads,
+      safeUrl,
+      openLead(lead) {
+        selected = lead;
+        show("lead");
+      },
+      setLive,
+    });
+  }
 }
 function paintView(name) {
   if (name === "pipeline") renderBoard();
@@ -1351,6 +1404,7 @@ function reveal(name) {
 }
 document.getElementById("studioDrawerClose").onclick = () => closeSheet(false);
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && window.Territory && window.Territory.consumeEscape()) return;
   if (event.key === "Escape" && inSheet()) closeSheet(false);
   if (event.key === "Escape" && window.closeSettings) window.closeSettings();
 });
@@ -1370,7 +1424,8 @@ document.body.addEventListener("click", (event) => {
   }
   const sheetButton = event.target.closest("[data-sheet]");
   if (sheetButton && sheetButton.closest("#toolGrid")) {
-    openGoogleApp(sheetButton.dataset.sheet);
+    if (inAppSheets.has(sheetButton.dataset.sheet)) openSheet(sheetButton.dataset.sheet);
+    else openGoogleApp(sheetButton.dataset.sheet);
     return;
   }
   if (sheetButton && !sheetButton.closest("#gate")) {

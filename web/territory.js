@@ -1,0 +1,490 @@
+/* Territory map. Leaflet is loaded the first time the drawer opens. */
+const MAP_ENDPOINTS = {
+  street: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  labels: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+  osrm: "https://router.project-osrm.org/route/v1/driving/",
+};
+const STREET_ATTRIBUTION = "© OpenStreetMap contributors";
+const SATELLITE_ATTRIBUTION = "Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+
+let leafletPromise = null;
+let active = null;
+
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (!leafletPromise) {
+    leafletPromise = new Promise((resolve, reject) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "/vendor/leaflet/leaflet.css";
+      document.head.appendChild(link);
+      const script = document.createElement("script");
+      script.src = "/vendor/leaflet/leaflet.js";
+      script.onload = () => resolve(window.L);
+      script.onerror = () => {
+        leafletPromise = null;
+        reject(new Error("Map library could not load."));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return leafletPromise;
+}
+
+function hasHq(lead) {
+  const hq = String(lead.hq || "").trim();
+  return Boolean(hq) && !/^(unknown|n\/a|none|-)$/i.test(hq);
+}
+
+function pointOf(lead) {
+  const lat = Number(lead.lat);
+  const lng = Number(lead.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    return { lat, lng };
+  }
+  const match = String(lead.coords || "").match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!match) return null;
+  const parsedLat = Number(match[1]);
+  const parsedLng = Number(match[2]);
+  if (Math.abs(parsedLat) > 90 || Math.abs(parsedLng) > 180) return null;
+  return { lat: parsedLat, lng: parsedLng };
+}
+
+function approximate(lead) {
+  const precision = lead.geo && lead.geo.precision;
+  return precision === "area" || precision === "region";
+}
+
+function pinSvg(lead) {
+  if (approximate(lead)) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="9" fill="none" stroke="#1a73e8" stroke-width="2" stroke-dasharray="3 2"/></svg>';
+  }
+  if (lead.priority === "High" && !lead.negative) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36" aria-hidden="true"><path fill="#1a73e8" d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.3 21.7 0 14 0z"/><polygon fill="#fff" points="14,6.5 15.8,11.2 20.8,11.5 16.9,14.6 18.1,19.4 14,16.8 9.9,19.4 11.1,14.6 7.2,11.5 12.2,11.2"/></svg>';
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36" aria-hidden="true"><path fill="#fff" stroke="#80868b" stroke-width="2" d="M14 1.5C7 1.5 1.5 7 1.5 14c0 9.2 12.5 20 12.5 20S26.5 23.2 26.5 14C26.5 7 21 1.5 14 1.5z"/></svg>';
+}
+
+function button(label, onClick) {
+  const node = document.createElement("button");
+  node.type = "button";
+  node.textContent = label;
+  node.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  });
+  return node;
+}
+
+function say(state, text) {
+  state.live.textContent = text;
+  if (state.api.setLive) state.api.setLive(text);
+}
+
+function paintRoute(state) {
+  const from = state.route.from ? state.route.from.label : "not set";
+  const to = state.route.to ? state.route.to.label : "not set";
+  state.ends.textContent = "From: " + from + ". To: " + to + ".";
+  const stops = state.route.day.map((stop) => stop.label);
+  state.day.textContent = stops.length ? "Day route: " + stops.join(", ") + "." : "";
+}
+
+function remember(state, kind, lead, point) {
+  const place = { label: lead.company, lat: point.lat, lng: point.lng, id: lead.id };
+  if (kind === "day") {
+    if (state.route.day.some((stop) => stop.id === lead.id)) return;
+    if (state.route.day.length >= 10) {
+      say(state, "The day route already has 10 stops.");
+      return;
+    }
+    state.route.day.push(place);
+    say(state, lead.company + " was added to the day route.");
+  } else {
+    state.route[kind] = place;
+    say(state, (kind === "from" ? "From is " : "To is ") + lead.company + ".");
+  }
+  paintRoute(state);
+}
+
+function popupCard(state, lead, point) {
+  const card = document.createElement("div");
+  card.className = "pin-card";
+  const title = document.createElement("strong");
+  title.textContent = lead.company;
+  const tag = document.createElement("span");
+  tag.className = "tag " + (lead.negative ? "neg" : "high");
+  tag.textContent = approximate(lead) ? "Approximate location" : (lead.priority || "Low");
+  const hq = document.createElement("p");
+  hq.textContent = lead.hq || "";
+  const pain = document.createElement("p");
+  pain.textContent = lead.pain || "";
+  const hook = document.createElement("p");
+  hook.textContent = lead.hook || "No public hook.";
+  card.append(title, tag, hq, pain, hook);
+  const source = state.api.safeUrl(lead.source);
+  if (source) {
+    const link = document.createElement("a");
+    link.href = new URL(String(lead.source)).href;
+    link.rel = "noopener noreferrer";
+    link.target = "_blank";
+    link.textContent = "Source";
+    card.append(link);
+  }
+  const maps = document.createElement("a");
+  maps.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(point.lat + "," + point.lng);
+  maps.rel = "noopener noreferrer";
+  maps.target = "_blank";
+  maps.textContent = "Open in Google Maps";
+  const actions = document.createElement("div");
+  actions.className = "pin-actions";
+  actions.append(
+    button("Route from here", () => remember(state, "from", lead, point)),
+    button("Route to here", () => remember(state, "to", lead, point)),
+    button("Add to day route", () => remember(state, "day", lead, point)),
+    button("Open lead", () => state.api.openLead(lead)),
+  );
+  card.append(maps, actions);
+  return card;
+}
+
+function addMarker(state, L, lead, point) {
+  const icon = L.divIcon({
+    className: "pin-icon",
+    html: pinSvg(lead),
+    iconSize: approximate(lead) ? [28, 28] : [28, 36],
+    iconAnchor: approximate(lead) ? [14, 14] : [14, 36],
+    popupAnchor: [0, approximate(lead) ? -12 : -32],
+  });
+  const marker = L.marker([point.lat, point.lng], { icon, title: lead.company, keyboard: true });
+  const popup = L.popup({
+    maxWidth: 280,
+    autoPan: true,
+    autoPanPaddingTopLeft: [16, 72],
+    autoPanPaddingBottomRight: [16, 16],
+  }).setContent(popupCard(state, lead, point));
+  marker.bindPopup(popup);
+  marker.on("add", () => {
+    const el = marker.getElement();
+    if (!el) return;
+    el.setAttribute("role", "button");
+    el.tabIndex = 0;
+    el.setAttribute("aria-label", lead.company);
+  });
+  marker.on("popupopen", () => {
+    const node = marker.getPopup().getElement();
+    const focusable = node && node.querySelector("button, a");
+    if (focusable) focusable.focus();
+  });
+  marker.addTo(state.map);
+  state.markers.set(lead.id, marker);
+  return marker;
+}
+
+function renderList(state) {
+  state.list.replaceChildren();
+  const leads = state.api.getLeads();
+  const placed = [];
+  const waiting = [];
+  const missing = [];
+  for (const lead of leads) {
+    if (!hasHq(lead)) missing.push(lead);
+    else if (pointOf(lead)) placed.push(lead);
+    else waiting.push(lead);
+  }
+  const addHeading = (text) => {
+    const heading = document.createElement("h3");
+    heading.textContent = text;
+    state.list.append(heading);
+  };
+  const addRow = (lead, note, onClick) => {
+    const row = document.createElement("button");
+    row.type = "button";
+    const name = document.createElement("span");
+    name.textContent = lead.company;
+    const detail = document.createElement("small");
+    detail.textContent = note;
+    row.append(name, detail);
+    row.addEventListener("click", onClick);
+    state.list.append(row);
+  };
+  if (placed.length) addHeading("On the map");
+  for (const lead of placed) {
+    addRow(lead, lead.hq, () => {
+      const marker = state.markers.get(lead.id);
+      const point = pointOf(lead);
+      if (!marker || !point || !state.map) return;
+      state.map.setView([point.lat, point.lng], Math.max(state.map.getZoom(), 12));
+      marker.openPopup();
+      say(state, lead.company + " is on the map.");
+    });
+  }
+  if (waiting.length) addHeading("Headquarters not placed yet");
+  for (const lead of waiting) {
+    addRow(lead, lead.hq + ". Not placed on the map yet.", () => {
+      say(state, "No pin for " + lead.company + ". The headquarters is not on the map yet.");
+    });
+  }
+  if (missing.length) addHeading("No public headquarters address");
+  for (const lead of missing) {
+    addRow(lead, "No public headquarters address.", () => {
+      say(state, lead.company + " has no public headquarters address.");
+    });
+  }
+}
+
+function locate(state, L) {
+  if (!navigator.geolocation) {
+    say(state, "Location is unavailable on this browser.");
+    return;
+  }
+  const token = state.token;
+  say(state, "Finding this browser.");
+  navigator.geolocation.getCurrentPosition((position) => {
+    if (token !== state.token || !state.map) return;
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const accuracy = Number(position.coords.accuracy) || 40;
+    if (state.youCircle) state.map.removeLayer(state.youCircle);
+    if (state.youMarker) state.map.removeLayer(state.youMarker);
+    state.youCircle = L.circle([lat, lng], {
+      radius: accuracy,
+      color: "#1a73e8",
+      weight: 1,
+      fillColor: "#1a73e8",
+      fillOpacity: 0.15,
+    }).addTo(state.map);
+    state.youMarker = L.marker([lat, lng], {
+      icon: L.divIcon({ className: "you-dot", iconSize: [16, 16], iconAnchor: [8, 8] }),
+      keyboard: false,
+      title: "You are here",
+    }).addTo(state.map);
+    state.here = { lat, lng, label: "My location" };
+    state.map.setView([lat, lng], Math.max(state.map.getZoom(), 13));
+    say(state, "You are here. This position stays in the browser until you route from it.");
+  }, () => {
+    if (token !== state.token) return;
+    say(state, "Location was denied or timed out. The map was not moved.");
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+}
+
+function leaveExpanded(state) {
+  if (!state || !state.host || !state.host.classList.contains("is-expanded")) return false;
+  if (state.placeholder && state.placeholder.parentNode) {
+    state.placeholder.parentNode.insertBefore(state.host, state.placeholder);
+    state.placeholder.remove();
+  }
+  state.placeholder = null;
+  state.host.classList.remove("is-expanded");
+  if (state.exit) state.exit.hidden = true;
+  if (state.map) state.map.invalidateSize();
+  return true;
+}
+
+function enterExpanded(state) {
+  state.placeholder = document.createElement("div");
+  state.placeholder.className = "territory-map-holder";
+  state.host.parentNode.insertBefore(state.placeholder, state.host);
+  document.body.appendChild(state.host);
+  state.host.classList.add("is-expanded");
+  state.exit.hidden = false;
+  state.map.invalidateSize();
+}
+
+function toggleFullscreen(state) {
+  const node = state.host;
+  const native = node.requestFullscreen || node.webkitRequestFullscreen;
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+    return;
+  }
+  if (state.host.classList.contains("is-expanded")) {
+    leaveExpanded(state);
+    return;
+  }
+  if (native) {
+    state.exit.hidden = false;
+    Promise.resolve(native.call(node)).catch(() => enterExpanded(state));
+    return;
+  }
+  enterExpanded(state);
+}
+
+function watchTiles(state, layer) {
+  layer.on("tileerror", () => {
+    state.tileErrors += 1;
+    if (state.tileErrors >= 3 && state.note.hidden) {
+      state.note.hidden = false;
+      state.note.textContent = "Map tiles could not load.";
+      say(state, "Map tiles could not load.");
+    }
+  });
+}
+
+function mountMap(state, L) {
+  const street = L.tileLayer(MAP_ENDPOINTS.street, { attribution: STREET_ATTRIBUTION, maxZoom: 19 });
+  const satellite = L.tileLayer(MAP_ENDPOINTS.satellite, { attribution: SATELLITE_ATTRIBUTION, maxZoom: 19 });
+  const labels = L.tileLayer(MAP_ENDPOINTS.labels, { attribution: SATELLITE_ATTRIBUTION, maxZoom: 19 });
+  watchTiles(state, street);
+  watchTiles(state, satellite);
+  state.map = L.map(state.host, { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
+  street.addTo(state.map);
+  L.control.layers({ Street: street, Satellite: satellite }, { "Place names": labels }).addTo(state.map);
+  state.map.on("baselayerchange", (event) => {
+    if (event.name === "Satellite" && !state.map.hasLayer(labels)) labels.addTo(state.map);
+    if (event.name === "Street" && state.map.hasLayer(labels)) state.map.removeLayer(labels);
+  });
+  const points = [];
+  for (const lead of state.api.getLeads()) {
+    const point = hasHq(lead) ? pointOf(lead) : null;
+    if (!point) continue;
+    addMarker(state, L, lead, point);
+    points.push([point.lat, point.lng]);
+  }
+  if (points.length) state.map.fitBounds(points, { padding: [28, 28], maxZoom: 12 });
+  const drawer = document.getElementById("studioDrawer");
+  state.onTransition = (event) => {
+    if (event.propertyName === "transform" && state.map) state.map.invalidateSize();
+  };
+  if (drawer) drawer.addEventListener("transitionend", state.onTransition);
+  if (window.ResizeObserver) {
+    state.observer = new ResizeObserver(() => {
+      if (state.map) state.map.invalidateSize();
+    });
+    state.observer.observe(state.host);
+  }
+  state.onFullscreen = () => {
+    if (!state.map) return;
+    const open = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    state.exit.hidden = !open && !state.host.classList.contains("is-expanded");
+    state.map.invalidateSize();
+  };
+  document.addEventListener("fullscreenchange", state.onFullscreen);
+  document.addEventListener("webkitfullscreenchange", state.onFullscreen);
+  requestAnimationFrame(() => {
+    if (state.map) state.map.invalidateSize();
+  });
+}
+
+window.MAP_ENDPOINTS = MAP_ENDPOINTS;
+window.Territory = {
+  mount(root, api) {
+    this.destroy();
+    if (!root) return;
+    const leads = api.getLeads();
+    if (!leads.some(hasHq)) {
+      const empty = document.createElement("p");
+      empty.textContent = "No headquarters address is on the desk yet. Run research to add pins.";
+      root.append(empty);
+      if (api.setLive) api.setLive(empty.textContent);
+      return;
+    }
+    const state = {
+      token: 1,
+      api,
+      root,
+      map: null,
+      markers: new Map(),
+      host: null,
+      note: null,
+      live: null,
+      ends: null,
+      day: null,
+      exit: null,
+      placeholder: null,
+      youCircle: null,
+      youMarker: null,
+      here: null,
+      observer: null,
+      onTransition: null,
+      onFullscreen: null,
+      tileErrors: 0,
+      route: { from: null, to: null, day: [] },
+    };
+    active = state;
+    state.live = document.createElement("p");
+    state.live.className = "territory-live";
+    state.live.setAttribute("aria-live", "polite");
+    const tools = document.createElement("div");
+    tools.className = "territory-tools";
+    tools.append(
+      button("Locate me", () => {
+        if (!state.map || !window.L) return;
+        locate(state, window.L);
+      }),
+      button("Full screen", () => {
+        if (state.host) toggleFullscreen(state);
+      }),
+    );
+    state.note = document.createElement("p");
+    state.note.className = "territory-note";
+    state.note.hidden = true;
+    state.host = document.createElement("div");
+    state.host.className = "territory-map";
+    state.exit = button("Exit", () => {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) exit.call(document);
+        return;
+      }
+      leaveExpanded(state);
+    });
+    state.exit.classList.add("territory-exit");
+    state.exit.hidden = true;
+    state.host.append(state.exit);
+    const form = document.createElement("form");
+    form.className = "territory-route";
+    form.addEventListener("submit", (event) => event.preventDefault());
+    const disclosure = document.createElement("p");
+    disclosure.textContent = "Routes are drawn by the public OSRM server.";
+    state.ends = document.createElement("p");
+    state.day = document.createElement("p");
+    form.append(disclosure, state.ends, state.day);
+    paintRoute(state);
+    state.list = document.createElement("div");
+    state.list.className = "territory-list";
+    root.append(state.live, tools, state.note, state.host, form, state.list);
+    renderList(state);
+    say(state, "Opening the territory map.");
+    loadLeaflet().then((L) => {
+      if (active !== state) return;
+      mountMap(state, L);
+      say(state, "Territory map is open.");
+    }).catch(() => {
+      if (active !== state) return;
+      state.note.hidden = false;
+      state.note.textContent = "Map library could not load.";
+      say(state, state.note.textContent);
+    });
+  },
+  destroy() {
+    const state = active;
+    active = null;
+    if (!state) return;
+    state.token += 1;
+    const drawer = document.getElementById("studioDrawer");
+    if (state.onTransition && drawer) drawer.removeEventListener("transitionend", state.onTransition);
+    if (state.onFullscreen) {
+      document.removeEventListener("fullscreenchange", state.onFullscreen);
+      document.removeEventListener("webkitfullscreenchange", state.onFullscreen);
+    }
+    if (state.observer) state.observer.disconnect();
+    leaveExpanded(state);
+    if (state.map) {
+      state.map.remove();
+      state.map = null;
+    }
+  },
+  consumeEscape() {
+    const state = active;
+    if (!state) return false;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+      return true;
+    }
+    return leaveExpanded(state);
+  },
+};
