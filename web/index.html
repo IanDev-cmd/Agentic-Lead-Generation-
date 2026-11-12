@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600;700&family=Montserrat:wght@500;600;700&family=Outfit:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600;700&family=Montserrat:wght@500;600;700&family=Outfit:wght@500&family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #202124;
@@ -238,6 +238,7 @@
 
   .view { width: min(1100px, 100%); margin: 0 auto; }
   .view[hidden] { display: none !important; }
+  #view-home[hidden] { display: none !important; }
   .page {
     padding: 88px 24px 40px;
   }
@@ -256,7 +257,7 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.45);
   }
   .file-card {
-    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left;
+    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; text-decoration: none;
     background: #fff; color: var(--ink); border: 0; border-radius: 18px;
     padding: 14px 18px; margin: 0 0 12px;
     box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
@@ -323,7 +324,9 @@
   .doc-main { flex: 1; min-height: 0; overflow: auto; padding: 28px 28px 8px; }
   .doc-text p { margin: 16px 0 0; color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 62ch; }
   .src-line { display: flex; align-items: center; gap: 8px; }
-  .src-line .src-row { flex: 1; min-width: 0; }
+  .src-line .src-row { flex: 1; min-width: 0; overflow: hidden; }
+  .src-line .src-name { display: block; flex: 1; min-width: 0; margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+  .src-del, .src-kind { flex: none; white-space: nowrap; }
   .src-del {
     border: 0; background: transparent; color: var(--bad); font-size: 12px; font-weight: 700;
     padding: 4px 2px;
@@ -378,6 +381,29 @@
     color: #202124;
   }
   .studio-ask em { font-style: normal; color: #80868b; font-size: 12px; white-space: nowrap; }
+  .studio-ask { position: relative; }
+  .query-rail { display: none; align-items: center; height: 28px; max-width: 42%; overflow: hidden; }
+  body.is-thinking .query-rail { display: flex; }
+  .query-pip {
+    width: 22px; height: 22px; border-radius: 50%; flex: none; margin-left: -8px;
+    display: grid; place-items: center; color: #fff; box-shadow: 0 0 0 2px #fff;
+  }
+  .query-pip svg { width: 12px; height: 12px; }
+  .query-pip.is-fly { animation: bombard .55s ease-out; }
+  @property --gem-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  .gem-glow::before {
+    content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px;
+    background: conic-gradient(from var(--gem-angle), #4285F4, #EA4335, #F9AB00, #FBBC05, #34A853, #4285F4);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; opacity: 0; pointer-events: none;
+  }
+  body.is-thinking .gem-glow::before { opacity: 1; animation: gem-spin 2.4s linear infinite, gem-breathe 1.6s ease-in-out infinite; }
+  @keyframes gem-spin { to { --gem-angle: 360deg; } }
+  @keyframes gem-breathe { 50% { filter: drop-shadow(0 0 8px rgba(66, 133, 244, 0.55)); } }
+  @keyframes bombard { from { transform: translateX(72px) scale(.35) rotate(-18deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .query-pip.is-fly, body.is-thinking .gem-glow::before { animation: none; }
+  }
   .studio-go svg { width: 16px; height: 16px; display: block; }
   .studio-go {
     all: unset;
@@ -438,23 +464,6 @@
   .sheet-wrap table { border-collapse: collapse; min-width: 720px; width: 100%; font: 400 12px Inter, sans-serif; }
   .sheet-wrap th, .sheet-wrap td { border-bottom: 1px solid #e6e8eb; padding: 8px 10px; text-align: left; white-space: nowrap; }
   .sheet-wrap th { background: #e6f4ea; color: #137333; font-weight: 600; }
-  .map-list { display: flex; flex-direction: column; gap: 8px; }
-  .map-list button {
-    all: unset;
-    cursor: pointer;
-    box-sizing: border-box;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    background: #f7f8fa;
-    border-radius: 14px;
-    padding: 14px 16px;
-    font: 500 15px Inter, sans-serif;
-    color: #202124;
-  }
-  .map-list button:hover { background: #eef1f6; }
-  .map-list small { display: block; color: #80868b; font: 400 12px Inter, sans-serif; }
   #studioDrawerBody > p { margin: 0 0 12px; font: 400 15px/1.55 Inter, sans-serif; color: #202124; }
   .territory { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .territory-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -496,6 +505,18 @@
   @media (max-width: 420px) {
     .territory-map { height: 240px; }
     .territory-tools button, .territory-route button, .pin-card button { min-height: 44px; }
+  }
+
+  .radar-view {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 72px 18px 28px;
+    min-height: 100dvh;
+  }
+  .radar-view[hidden] { display: none !important; }
+  @media (max-width: 900px) {
+    .radar-view { padding: 72px 10px calc(84px + env(safe-area-inset-bottom)); }
   }
 
   #view-lead { width: 100%; margin: 0; height: 100dvh; overflow: auto; padding: 64px 0 0; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
@@ -597,6 +618,12 @@
   .ask-leads article { padding: 8px 0; border-bottom: 1px solid var(--line); }
   .ask-leads b { display: block; font-size: 13px; }
   .ask-leads span { display: block; color: #5f6368; font-size: 12px; line-height: 1.4; }
+  .batch-row {
+    width: 100%; display: flex; flex-direction: column; gap: 2px; text-align: left;
+    border: 0; background: #f7f8fa; border-radius: 12px; padding: 10px 12px; margin-top: 8px; cursor: pointer;
+  }
+  .batch-row b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .batch-row small { color: #5f6368; font-size: 12px; }
   .ws-toggles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 14px; }
   .ws-toggles label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
   .ws-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e6e8eb; }
@@ -800,7 +827,7 @@
       <div class="brand">Lead</div>
       <nav class="links" aria-label="Landing slides">
         <button type="button" data-slide="0" class="on">Desk</button>
-        <button type="button" data-slide="1">Pipeline</button>
+        <button type="button" data-slide="1">Analytics</button>
         <button type="button" data-slide="2">Workspace</button>
       </nav>
       <div class="tools"></div>
@@ -835,7 +862,7 @@
   </section>
 </section>
 
-<div class="desk is-home" id="desk" hidden>
+<div class="desk" id="desk" hidden>
   <nav class="top" aria-label="Desk">
     <button type="button" class="home-link" data-view="home">Home</button>
     <button type="button" class="icon-btn" id="appsBtn" aria-label="Open the page menu" aria-expanded="false" aria-controls="appsMenu">
@@ -849,7 +876,6 @@
   <div class="apps-menu" id="appsMenu" hidden></div>
   <nav class="side-dots" id="sideDots" aria-label="Desk pages"></nav>
   <nav class="dock" aria-label="Shortcuts">
-    <button type="button" data-view="map"><i style="background:#12b5a6;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></i>Territory</button>
     <button type="button" data-view="studio" data-start="1"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg></i>Research</button>
     <button type="button" id="dockMenu"><i style="background:#202124;color:#fff"><svg class="ico-bob" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="1.4" fill="currentColor"/><circle cx="12" cy="6" r="1.4" fill="currentColor"/><circle cx="18" cy="6" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="18" r="1.4" fill="currentColor"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/><circle cx="18" cy="18" r="1.4" fill="currentColor"/></svg></i>Menu</button>
     <button type="button" data-view="studio"><i style="background:#f4ead7;color:#202124"><svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></i>Add shortcut</button>
@@ -857,16 +883,18 @@
   <nav class="mobile-nav" aria-label="Sections">
     <button type="button" data-view="home">Home</button>
     <button type="button" data-view="studio">Research</button>
-    <button type="button" data-view="pipeline">Pipeline</button>
+    <button type="button" data-view="accounts">Leads</button>
+    <button type="button" data-view="analytics">Analytics</button>
+    <button type="button" data-view="map">Territory</button>
     <button type="button" data-view="workspace">Workspace</button>
   </nav>
   <main id="main">
-    <section class="view" id="view-home">
+    <section class="view" id="view-home" hidden>
       <h1 class="wordmark" id="homeTitle" tabindex="-1">Lead desk</h1>
       <div class="grid" id="homeGrid"></div>
     </section>
 
-    <section class="view studio" id="view-studio" hidden>
+    <section class="view studio" id="view-studio">
       <aside class="panel sources">
         <div class="panel-head">
           <h2>Sources</h2>
@@ -922,8 +950,9 @@
           <div class="doc-text" id="docText"></div>
         </div>
         <div class="studio-dock">
-          <form class="studio-ask" id="askForm">
+          <form class="studio-ask gem-glow" id="askForm">
             <input id="askInput" type="text" placeholder="Ask a question or create something" autocomplete="off" aria-label="Ask a question or create something">
+            <div class="query-rail" id="queryRail" hidden></div>
             <em id="sourceCount">0 sources</em>
             <button type="submit" class="studio-go" aria-label="Ask">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V6M6.5 11 12 5.5 17.5 11"/></svg>
@@ -935,8 +964,8 @@
         <h2>Studio</h2>
         <div class="tool-grid" id="toolGrid"></div>
         <section class="ask-leads" id="askLeads" aria-label="Leads from the ask bar">
-          <h2>Leads</h2>
-          <div id="askLeadList"><p class="meta">Ask with sources checked. The list appears here.</p></div>
+          <h2>Lead batches</h2>
+          <div id="askLeadList"><p class="meta">Each run lands here as one batch.</p></div>
         </section>
       </aside>
     </section>
@@ -947,13 +976,25 @@
       <div id="fileCards"></div>
     </section>
 
-    <section class="view page" id="view-pipeline" hidden>
+    <section class="view file-stage" id="view-accounts" hidden>
+      <h1>Leads</h1>
+      <p class="file-sub" id="leadBatchTitle">Companies in this batch.</p>
+      <div id="leadCards"></div>
+    </section>
+
+    <section class="view page" id="view-map" hidden>
       <div class="quote-card">
-        <h2>Lead directory</h2>
-        <p class="lede">Every company in this batch, with its status on the card. A negative match stays red and does not create a draft.</p>
-        <div class="board" id="leadDirectory"></div>
+        <h2>Territory</h2>
+        <p class="lede">Headquarters grouped for local sales. Coordinates come from the Apps Script Maps geocoder, not a hazard layer.</p>
+        <p><button type="button" class="primary" data-sheet="map">Open the full map</button></p>
+        <table>
+          <thead><tr><th>Company</th><th>Group</th><th>Coordinates</th></tr></thead>
+          <tbody id="mapRows"></tbody>
+        </table>
       </div>
     </section>
+
+    <section class="view radar-view" id="view-analytics" hidden></section>
 
     <section class="view page" id="view-report" hidden>
       <div class="quote-card">
@@ -971,7 +1012,7 @@
           </aside>
         </div>
         <div class="actions">
-          <button type="button" data-view="pipeline">Back to pipeline</button>
+          <button type="button" data-view="analytics">Back to analytics</button>
           <button type="button" class="primary" id="openDraft">Review Gmail draft</button>
         </div>
       </div>
@@ -988,42 +1029,6 @@
           <button type="button" class="primary" id="approveDraft">Approve pitch and clear task</button>
           <button type="button" id="holdDraft">Keep task</button>
         </div>
-      </div>
-    </section>
-
-    <section class="view file-stage" id="view-accounts" hidden>
-      <h1>Leads</h1>
-      <p class="file-sub">Companies in this batch.</p>
-      <div id="leadCards"></div>
-    </section>
-
-    <section class="view page" id="view-pains" hidden>
-      <div class="quote-card">
-        <h2>Pain points</h2>
-        <p class="lede">Sourced problems and negative matches. A negative match means the search did not support a pitch.</p>
-        <div id="painList"></div>
-      </div>
-    </section>
-
-    <section class="view page" id="view-priority" hidden>
-      <div class="quote-card">
-        <h2>Priority</h2>
-        <p class="lede">High is the only band that creates a briefing, a calendar link, and a 48-hour task.</p>
-        <table>
-          <thead><tr><th>Company</th><th>Priority</th><th>What happens</th></tr></thead>
-          <tbody id="priorityRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="view page" id="view-map" hidden>
-      <div class="quote-card">
-        <h2>Territory</h2>
-        <p class="lede">Headquarters grouped for local sales. Coordinates come from the Apps Script Maps geocoder, not a hazard layer.</p>
-        <table>
-          <thead><tr><th>Company</th><th>Group</th><th>Coordinates</th></tr></thead>
-          <tbody id="mapRows"></tbody>
-        </table>
       </div>
     </section>
 
@@ -1107,7 +1112,8 @@
 import * as Geo from "/geo.js?v=1";
 window.Geo = Geo;
 </script>
-<script src="/territory.js?v=6"></script>
+<script src="/territory.js?v=7"></script>
+<script src="/radar.js?v=1"></script>
 <script>
 const brandPath = {
   sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
@@ -1139,30 +1145,35 @@ const spinner = `<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><circl
 
 const slides = [
   { title: "DESK", text: "Start from an ideal customer profile. The desk shows planning, search, and drafting while the batch is still running." },
-  { title: "PIPELINE", text: "Each company stays in one directory. A briefing, a Gmail draft, and a task appear only after a person can see why." },
+  { title: "ANALYTICS", text: "Each company is scored against the ICP. Stages move from discovery to a final match. Nothing is sent from this desk." },
   { title: "WORKSPACE", text: "Sheets, Docs, Drive, and Gmail drafts are the handoff. The pitch stays here until you approve it." }
 ];
 const thumbs = [
   { label: "DESK", color: "#12324a" },
-  { label: "PIPELINE", color: "#0d6b32" },
+  { label: "ANALYTICS", color: "#0d6b32" },
   { label: "WORKSPACE", color: "#174ea6" }
 ];
 let leads = [];
 let batchInteractionId = '';
+function fixtureLead(lead) {
+  const company = String((lead && lead.company) || "").trim().toLowerCase();
+  const domain = String((lead && (lead.domain || lead.url)) || "").trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+  if (company === "northwind analytics" || company === "contoso fabrication") return true;
+  if (domain.endsWith(".example")) return true;
+  return false;
+}
 const tiles = [
   { view: "studio", title: "Research", copy: "Sources, ask, and the batch", icon: "calendar", color: "#188038" },
+  { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "sparkles", color: "#174ea6" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
-  { view: "pipeline", title: "Pipeline", copy: "Companies and their status", icon: "sparkles", color: "#1a73e8" },
-  { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "building", color: "#1a73e8" },
-  { view: "pains", title: "Pain points", copy: "Sourced problems and misses", icon: "activity", color: "#e37400" },
-  { view: "priority", title: "Priority", copy: "High rows and the 48-hour task", icon: "bars", color: "#188038" },
+  { view: "analytics", title: "Analytics", copy: "ICP match and review stages", icon: "sparkles", color: "#1a73e8" },
   { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" }
 ];
 const tools = [
   { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
   { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
   { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
-  { sheet: "pipeline", title: "Pipeline", copy: "Lead directory", icon: "bars", color: "#d93025" },
+  { sheet: "pipeline", title: "Directory", copy: "Google Sheet rows", icon: "bars", color: "#d93025" },
   { sheet: "run", title: "Research", copy: "Planning and search", icon: "sparkles", color: "#a142f4" },
   { sheet: "workspace", title: "Lead sheet", copy: "Google Sheets", icon: "sheets" },
   { sheet: "tasks", title: "Tasks", copy: "48-hour follow-up", icon: "tasks", color: "#1a73e8" },
@@ -1170,20 +1181,18 @@ const tools = [
 ];
 const menuItems = [
   ["studio", "Research"],
-  ["workspace", "Google Workspace"],
-  ["pipeline", "Pipeline"],
   ["accounts", "Leads"],
-  ["pains", "Pain points"],
-  ["priority", "Priority"],
+  ["workspace", "Google Workspace"],
+  ["analytics", "Analytics"],
   ["map", "Territory"],
   ["draft", "Gmail draft"]
 ];
 const dotViews = [
   ["home", "Home"],
   ["studio", "Research"],
-  ["workspace", "Google Workspace"],
-  ["pipeline", "Pipeline"],
   ["accounts", "Leads"],
+  ["workspace", "Google Workspace"],
+  ["analytics", "Analytics"],
   ["map", "Territory"]
 ];
 let sourceSeq = 1;
@@ -1290,17 +1299,14 @@ function openDesk() {
 }
 const sheetMeta = {
   google: ["Google Workspace", "Account files"],
-  map: ["Territory", "Headquarters"],
   report: ["Google Docs", "Briefings"],
   slides: ["Google Slides", "Slide deck"],
-  pipeline: ["Pipeline", "Lead pipeline"],
+  pipeline: ["Directory", "Lead directory"],
   run: ["Research", "Research"],
   workspace: ["Google Sheets", "Data table"],
   tasks: ["Google Tasks", "Tasks"],
   draft: ["Google Gmail", "Email"],
-  accounts: ["Leads", "Companies"],
-  pains: ["Pain points", "Pain points"],
-  priority: ["Priority", "Priority"]
+  map: ["Territory", "Headquarters"]
 };
 function inSheet() {
   return document.getElementById("studioDrawer").classList.contains("is-open");
@@ -1323,20 +1329,11 @@ function drawerBody(name) {
     const body = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.domain)}</td><td>${escapeHtml(lead.hq)}</td><td>${escapeHtml(lead.priority)}</td><td>${escapeHtml(statusTag(lead).label)}</td></tr>`).join("");
     return `<div class="sheet-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
-  if (name === "map") return '<div class="territory"></div>';
   if (name === "report") {
     return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p><p>${escapeHtml(lead.hook || "No public hook. A briefing is not created.")}</p></article>`).join("");
   }
   if (name === "pipeline") return leads.map((lead) => card(lead)).join("");
-  if (name === "accounts") {
-    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b> ${escapeHtml(lead.domain)}</p><p>${escapeHtml(lead.hq)} · ${escapeHtml(lead.distance)}</p></article>`).join("");
-  }
-  if (name === "pains") {
-    return leads.map((lead) => `<article class="doc-sheet"><p><b>${escapeHtml(lead.company)}</b></p><p>${escapeHtml(lead.pain)}</p></article>`).join("");
-  }
-  if (name === "priority") {
-    return leads.map((lead) => `<article class="task-card"><b>${escapeHtml(lead.company)}</b><span>${lead.priority === "High" ? "Briefing, calendar link, and a 48-hour task." : "Sheet row only."}</span></article>`).join("");
-  }
+  if (name === "map") return '<div class="territory"></div>';
   return "<p>No preview is on the desk yet.</p>";
 }
 function mailBody() {
@@ -1372,7 +1369,7 @@ function openSheet(name) {
   drawer.classList.add("is-open");
   if (name === "map" && window.Territory) {
     window.Territory.mount(document.querySelector("#studioDrawerBody .territory"), {
-      getLeads: () => leads,
+      getLeads: () => batchLeads(),
       safeUrl,
       openLead(lead) {
         pickLead(lead);
@@ -1392,12 +1389,12 @@ function openSheet(name) {
   }
 }
 function paintView(name) {
-  if (name === "pipeline") renderBoard();
-  if (name === "workspace") renderWorkspace();
+  if (name === "analytics" && window.Radar) {
+    window.Radar.mount(document.getElementById("view-analytics"), batchLeads());
+  }
   if (name === "accounts") renderAccounts();
-  if (name === "pains") renderPains();
-  if (name === "priority") renderPriority();
   if (name === "map") renderMap();
+  if (name === "workspace") renderWorkspace();
   if (name === "studio") renderSources();
   if (name === "report") renderReport();
   if (name === "draft") renderDraft();
@@ -1405,6 +1402,8 @@ function paintView(name) {
 }
 function show(name) {
   if (name === "run") name = "studio";
+  if (name === "pipeline") name = "analytics";
+  if (name === "pains" || name === "priority") name = "studio";
   closeSheet(true);
   setMenu(false);
   document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== "view-" + name; });
@@ -1445,6 +1444,12 @@ document.body.addEventListener("click", (event) => {
     const lead = leads.find((item) => item.id === leadButton.dataset.id);
     if (lead) pickLead(lead);
     show("lead");
+    return;
+  }
+  const batchButton = event.target.closest("[data-batch]");
+  if (batchButton) {
+    activeBatchId = batchButton.dataset.batch;
+    show("accounts");
     return;
   }
   const sheetButton = event.target.closest("[data-sheet]");
@@ -1499,6 +1504,7 @@ function paintPhases(active, failed) {
 function startRun(extra) {
   clearTimeout(timer);
   phase = "plan";
+  startResearchGlow();
   if (inSheet()) openSheet("run");
   else show("studio");
   const focus = extra && extra.company ? extra.company : "";
@@ -1513,16 +1519,17 @@ function startRun(extra) {
         return;
       }
       batchInteractionId = body.interactionId || "";
-      if (Array.isArray(body.leads) && body.leads.length) mergeLeads(body.leads);
+      if (Array.isArray(body.leads) && body.leads.length) addBatch(focus || "Research run", "", body.leads);
       else leads.forEach((lead) => { if (!lead.interactionId) lead.interactionId = batchInteractionId; });
       step("plan", "Apps Script accepted the batch", "High rows have a briefing and a task. A draft is created only when you approve. Nothing was sent.");
       toast("Apps Script accepted the batch. Nothing was sent.");
-      reveal("pipeline");
+      reveal("analytics");
     })
     .catch((error) => {
       step("plan", "The desk could not reach the API", error.message);
       toast("The desk could not reach the API. Nothing was written to Sheets.");
-    });
+    })
+    .finally(stopResearchGlow);
 }
 function syncResearchDrawer() {
   if (!inSheet()) return;
@@ -1574,7 +1581,8 @@ function statusTag(lead) {
 }
 function renderBoard() {
   const directory = document.getElementById("leadDirectory");
-  const visible = leads.filter((lead) => !lead.archived);
+  if (!directory) return;
+  const visible = leads.filter((lead) => !lead.archived && !fixtureLead(lead));
   directory.innerHTML = visible.map((lead) => card(lead)).join("") || `<p class="lede">No companies in this directory.</p>`;
   bindLeadActions();
 }
@@ -1713,67 +1721,41 @@ document.getElementById("approveDraft").onclick = () => {
 };
 document.getElementById("holdDraft").onclick = () => {
   toast("Draft kept. The follow-up task stays open.");
-  reveal("pipeline");
+  reveal("analytics");
 };
 function renderWorkspace() {
-  const rows = [
-    { name: "Lead sheet", meta: "Google Sheets · the connected spreadsheet", view: "studio", icon: "sheets" },
-    ...leads.map((lead, index) => ({
-      name: lead.company,
-      meta: lead.negative ? "Negative match · no draft" : "File · 2026-11-11 09:2" + (4 + index),
-      view: "report",
-      id: lead.id,
-      icon: "sheets"
-    })),
-    { name: "Briefing - " + ((leads.find((lead) => !lead.negative) || {}).company || "Account"), meta: "Doc · after Apps Script accepts the batch", view: "report", id: (leads.find((lead) => !lead.negative) || {}).id, icon: "docs" },
-    { name: "Draft - " + ((leads.find((lead) => !lead.negative) || {}).company || "Account"), meta: "Gmail · not sent", view: "draft", id: (leads.find((lead) => !lead.negative) || {}).id, icon: "gmail" }
-  ];
-  document.getElementById("fileCards").innerHTML = rows.map((row) =>
-    `<button class="file-card" type="button" data-view="${escapeHtml(row.view)}"${row.id ? ` data-id="${escapeHtml(row.id)}"` : ""}><span class="file-ico">${icon(row.icon)}</span><span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(row.meta)}</small></span></button>`
-  ).join("");
+  const box = document.getElementById("fileCards");
+  box.innerHTML = '<p class="file-sub">Loading the connected Google account.</p>';
+  postDesk("/api/google", { action: "list", kinds: ["gmail", "docs", "sheets", "drive", "slides"] })
+    .then(async (response) => ({ response, body: await response.json().catch(() => ({})) }))
+    .then(({ response, body }) => {
+      if (!response.ok || !body.ok) {
+        box.innerHTML = `<p class="file-sub">${escapeHtml(body.error || "Google did not return files.")}</p>`;
+        return;
+      }
+      const items = (Array.isArray(body.items) ? body.items : []).filter((item) => item && item.name && !fixtureLead(item));
+      if (!items.length) {
+        box.innerHTML = '<p class="file-sub">Nothing in the connected Google account.</p>';
+        return;
+      }
+      const icons = { gmail: "gmail", docs: "docs", sheets: "sheets", drive: "drive", slides: "slides" };
+      box.innerHTML = items.map((item) => {
+        const href = safeUrl(item.url);
+        const kind = icons[item.kind] || "docs";
+        return `<a class="file-card" ${href ? `href="${href}" target="_blank" rel="noopener"` : ""}><span class="file-ico">${icon(kind)}</span><span><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.kind || "File")}</small></span></a>`;
+      }).join("");
+    })
+    .catch(() => {
+      box.innerHTML = '<p class="file-sub">The desk could not reach Google.</p>';
+    });
 }
-function leadLogo(lead) {
-  if (lead.photo) return lead.photo;
-  const domain = String(lead.domain || "").replace(/^https?:\/\//, "").split("/")[0];
-  if (domain && !/\s/.test(domain)) return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
-  return "";
-}
-function renderAccounts() {
-  const box = document.getElementById("leadCards");
-  box.innerHTML = leads.map((lead) => {
-    const logo = leadLogo(lead);
-    const letter = escapeHtml((lead.company || "?").slice(0, 1));
-    const mark = logo ? `<img src="${escapeHtml(logo)}" alt="">` : `<b class="logo-letter">${letter}</b>`;
-    const meta = [lead.domain, lead.hq, lead.priority].filter(Boolean).join(" · ");
-    return `<button class="file-card" type="button" data-view="lead" data-id="${escapeHtml(lead.id)}"><span class="file-ico">${mark}</span><span><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(meta || "Company")}</small></span></button>`;
-  }).join("") || `<p class="file-sub">No companies yet.</p>`;
-  box.querySelectorAll("img").forEach((img) => {
-    img.onerror = () => {
-      const name = img.closest(".file-card").querySelector("span b");
-      const fallback = document.createElement("b");
-      fallback.className = "logo-letter";
-      fallback.textContent = (name ? name.textContent : "?").slice(0, 1);
-      img.replaceWith(fallback);
-    };
-  });
-}
-function renderPains() {
-  document.getElementById("painList").innerHTML = leads.map((lead) => `<article class="lead"><strong>${escapeHtml(lead.company)}</strong><p>${escapeHtml(lead.pain)}</p><span class="tag ${lead.negative ? "neg" : "high"}">${lead.negative ? "Negative match" : "Sourced"}</span></article>`).join("");
-}
-function renderPriority() {
-  document.getElementById("priorityRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.priority)}</td><td>${lead.priority === "High" ? "Briefing, calendar link, and task" : "Sheet row only"}</td></tr>`).join("");
-}
-function renderMap() {
-  document.getElementById("mapRows").innerHTML = leads.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.distance)}</td><td>${escapeHtml(lead.coords || lead.hq)}</td></tr>`).join("");
-}
-
 function visibleSources() {
   return savedOnly ? sources.filter((item) => item.saved) : sources;
 }
 function renderSources() {
   const rows = visibleSources();
   document.getElementById("sourceList").innerHTML = rows.map((item) =>
-    `<div class="src-line"><label class="src-row"><input type="checkbox" class="src-check" data-id="${item.id}" ${item.saved ? "checked" : ""}> ${escapeHtml(item.name)}</label><button type="button" class="src-del" data-del="${item.id}">Delete</button><span class="src-kind">${escapeHtml(item.kind)}</span></div>`
+    `<div class="src-line"><label class="src-row"><input type="checkbox" class="src-check" data-id="${item.id}" ${item.saved ? "checked" : ""}><span class="src-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span></label><button type="button" class="src-del" data-del="${item.id}">Delete</button><span class="src-kind">${escapeHtml(item.kind)}</span></div>`
   ).join("") || `<p class="meta">No sources yet.</p>`;
   document.querySelectorAll(".src-check").forEach((box) => {
     box.onchange = () => {
@@ -1899,12 +1881,12 @@ function renderLead() {
     lead.negative ? "A negative match does not create a briefing or a task." : "The pitch stays a draft until you approve it."
   ].join(" ");
   const photo = document.getElementById("leadPhoto");
-  photo.src = lead.photo;
-  photo.alt = "Photograph of " + lead.company;
+  photo.alt = lead.company + " logo";
+  if (lead.photo) photo.src = lead.photo;
   document.getElementById("contactCompany").textContent = lead.company;
   document.getElementById("contactHq").textContent = lead.hq;
   document.getElementById("contactDomain").textContent = lead.domain;
-  document.getElementById("contactEmail").textContent = "No public email is on file.";
+  document.getElementById("contactEmail").textContent = lead.email || "No public email is on file.";
   document.getElementById("contactPriority").textContent = lead.negative ? "Low. Sheet row only." : "High. Briefing, calendar link, and a task due on the date 48 hours later.";
   const source = document.getElementById("contactSource");
   const href = safeUrl(lead.source);
@@ -1935,6 +1917,7 @@ document.getElementById("askForm").onsubmit = async (event) => {
   asked.textContent = text;
   input.value = "";
   box.append(asked);
+  startResearchGlow();
   const profile = profileBody();
   const checked = sources.filter((item) => item.saved);
   try {
@@ -1960,48 +1943,169 @@ document.getElementById("askForm").onsubmit = async (event) => {
     const reply = document.createElement("p");
     reply.textContent = body.explanation || "Gemini returned no explanation.";
     box.append(reply);
-    mergeLeads(body.leads || []);
-    paintAskedLeads(body.leads || []);
+    addBatch(text, body.explanation || "", body.leads || []);
   } catch (error) {
     const reply = document.createElement("p");
     reply.textContent = error.message || "The desk could not reach Gemini.";
     box.append(reply);
+  } finally {
+    stopResearchGlow();
   }
   document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
 };
+const batches = [];
+let activeBatchId = "";
+function leadKey(raw) {
+  return raw.id || String(raw.company || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lead";
+}
 function mergeLeads(rows) {
   (rows || []).forEach((raw) => {
-    if (!raw || !raw.company) return;
-    const id = raw.id || String(raw.company).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lead";
+    if (!raw || !raw.company || fixtureLead(raw)) return;
+    const id = leadKey(raw);
     const lead = {
       id: id,
       company: raw.company,
       domain: raw.domain || "",
+      website: raw.website || "",
+      email: raw.email || "",
       hq: raw.hq || raw.hqAddress || "",
+      lat: raw.lat == null ? null : raw.lat,
+      lng: raw.lng == null ? null : raw.lng,
       pain: raw.pain || raw.painPoint || "No public pain point.",
       hook: raw.hook || "",
       priority: raw.priority === "High" ? "High" : "Low",
       source: raw.source || "",
-      photo: raw.photo || "",
+      sources: Array.isArray(raw.sources) ? raw.sources : [],
+      signals: Array.isArray(raw.signals) ? raw.signals : [],
+      photo: raw.photo || raw.logo || "",
       negative: raw.negative != null ? raw.negative : !(raw.priority === "High" && raw.hook),
       interactionId: raw.interactionId || batchInteractionId || "",
       task: raw.task || "",
       taskWhy: raw.taskWhy || "",
       distance: raw.distance || "",
-      coords: raw.coords || ""
+      coords: raw.coords || (raw.lat != null && raw.lng != null ? raw.lat + ", " + raw.lng : "")
     };
     const index = leads.findIndex((item) => item.id === lead.id);
     if (index >= 0) leads[index] = Object.assign({}, leads[index], lead, { archived: leads[index].archived });
     else leads.push(lead);
   });
 }
-function paintAskedLeads(rows) {
+function batchLeads() {
+  const batch = batches.find((item) => item.id === activeBatchId);
+  const rows = batch ? batch.leadIds.map((id) => leads.find((lead) => lead.id === id)).filter(Boolean) : leads;
+  return rows.filter((lead) => !lead.archived && !fixtureLead(lead));
+}
+function addBatch(title, explanation, rows) {
+  mergeLeads(rows);
+  const leadIds = [];
+  (rows || []).forEach((raw) => {
+    if (!raw || !raw.company || fixtureLead(raw)) return;
+    const found = leads.find((item) => item.id === leadKey(raw));
+    if (found && !leadIds.includes(found.id)) leadIds.push(found.id);
+  });
+  if (!leadIds.length) return;
+  const batch = { id: "batch-" + Date.now(), title: String(title || "Lead batch").slice(0, 80), explanation: explanation || "", leadIds };
+  batches.unshift(batch);
+  activeBatchId = batch.id;
+  paintBatches();
+}
+function paintBatches() {
   const list = document.getElementById("askLeadList");
-  if (!rows.length) {
-    list.innerHTML = "<p class=\"meta\">No company in the checked sources matched this question.</p>";
+  if (!batches.length) {
+    list.innerHTML = "<p class=\"meta\">Each run lands here as one batch.</p>";
     return;
   }
-  list.innerHTML = rows.map((lead) => `<article><b>${escapeHtml(lead.company)}</b><span>${escapeHtml(lead.priority)} · ${escapeHtml(lead.pain || "No pain point in the sources.")}</span><span>${escapeHtml(lead.hook || "No hook. A draft is not created.")}</span></article>`).join("");
+  list.innerHTML = batches.map((batch) => `<button type="button" class="batch-row" data-batch="${escapeHtml(batch.id)}"><b>${escapeHtml(batch.title)}</b><small>${batch.leadIds.length} leads</small></button>`).join("");
+}
+function leadLogo(lead) {
+  if (lead.photo && /^https?:/i.test(lead.photo)) return lead.photo;
+  const host = String(lead.website || lead.domain || "").replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0];
+  if (host && host.includes(".")) return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(host) + "&sz=128";
+  return "";
+}
+function renderAccounts() {
+  const batch = batches.find((item) => item.id === activeBatchId);
+  const title = document.getElementById("leadBatchTitle");
+  if (title) title.textContent = batch ? batch.title : "Companies in this batch.";
+  const box = document.getElementById("leadCards");
+  const rows = batchLeads();
+  box.innerHTML = rows.map((lead) => {
+    const logo = leadLogo(lead);
+    const letter = escapeHtml((lead.company || "?").slice(0, 1));
+    const mark = logo ? `<img src="${escapeHtml(logo)}" alt="">` : `<b class="logo-letter">${letter}</b>`;
+    const meta = [lead.domain, lead.email, lead.hq].filter(Boolean).join(" · ");
+    return `<button class="file-card" type="button" data-view="lead" data-id="${escapeHtml(lead.id)}"><span class="file-ico">${mark}</span><span><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(meta || "Company")}</small></span></button>`;
+  }).join("") || `<p class="file-sub">No companies in this batch.</p>`;
+  box.querySelectorAll("img").forEach((img) => {
+    img.onerror = () => {
+      const name = img.closest(".file-card").querySelector("span b");
+      const fallback = document.createElement("b");
+      fallback.className = "logo-letter";
+      fallback.textContent = (name ? name.textContent : "?").slice(0, 1);
+      img.replaceWith(fallback);
+    };
+  });
+}
+function renderMap() {
+  const rows = batchLeads();
+  document.getElementById("mapRows").innerHTML = rows.map((lead) => `<tr><td>${escapeHtml(lead.company)}</td><td>${escapeHtml(lead.distance || lead.hq || "")}</td><td>${escapeHtml(lead.coords || lead.hq || "")}</td></tr>`).join("") || "<tr><td colspan=\"3\">No headquarters in this batch.</td></tr>";
+}
+const researchPips = [
+  ["#e2157b", "clock"],
+  ["#34a853", "dollar"],
+  ["#1a73e8", "people"],
+  ["#f9ab00", "news"],
+  ["#9334e6", "spark"],
+  ["#ea4335", "pin"]
+];
+const pipMarks = {
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>',
+  dollar: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3v18M16 7.5c0-1.5-1.8-2.5-4-2.5s-4 1-4 2.5 1.8 2.5 4 2.5 4 1 4 2.5-1.8 2.5-4 2.5-4-1-4-2.5"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 19c1-3 3-4 6-4s5 1 6 4"/><circle cx="17" cy="9" r="2"/><path d="M16 15c2 0 4 1 5 3"/></svg>',
+  news: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M5 4h11v16H5z"/><path d="M16 8h3v12H8"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.6 6.2L20 10l-6.4 1.8L12 18l-1.6-6.2L4 10l6.4-1.8z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"/><circle cx="12" cy="11" r="2"/></svg>'
+};
+let bombardTimer = 0;
+function makePip(spec, fly) {
+  const pip = document.createElement("span");
+  pip.className = fly ? "query-pip is-fly" : "query-pip";
+  pip.style.background = spec[0];
+  pip.innerHTML = pipMarks[spec[1]];
+  return pip;
+}
+function startResearchGlow() {
+  const form = document.getElementById("askForm");
+  const rail = document.getElementById("queryRail");
+  document.body.classList.add("is-thinking");
+  form.classList.add("is-querying");
+  rail.hidden = false;
+  rail.innerHTML = "";
+  clearInterval(bombardTimer);
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    researchPips.forEach((spec) => rail.append(makePip(spec, false)));
+    return;
+  }
+  let index = 0;
+  bombardTimer = setInterval(() => {
+    const spec = researchPips[index % researchPips.length];
+    rail.append(makePip(spec, true));
+    index += 1;
+    while (rail.children.length > 7) rail.firstElementChild.remove();
+  }, 130);
+}
+function stopResearchGlow() {
+  clearInterval(bombardTimer);
+  document.body.classList.remove("is-thinking");
+  document.getElementById("askForm").classList.remove("is-querying");
+  const rail = document.getElementById("queryRail");
+  rail.querySelectorAll(".query-pip").forEach((pip) => pip.classList.remove("is-fly"));
+  setTimeout(() => {
+    if (!document.body.classList.contains("is-thinking")) {
+      rail.hidden = true;
+      rail.innerHTML = "";
+    }
+  }, 600);
 }
 const googleApps = { map: "maps", report: "briefings", slides: "slides", pipeline: "sheet", run: "sheet", workspace: "sheet", tasks: "tasks", draft: "drafts" };
 async function openGoogleApp(sheet) {
@@ -2072,9 +2176,11 @@ async function loadDesk() {
   const response = await fetch("/api/leads");
   if (!response.ok) throw new Error("The lead list was refused.");
   const body = await response.json();
-  leads = Array.isArray(body.leads) ? body.leads : [];
+  leads = (Array.isArray(body.leads) ? body.leads : []).filter((lead) => !fixtureLead(lead));
   pickLead(leads[0] || null);
-  const requested = new URLSearchParams(location.search).get("view");
+  let requested = new URLSearchParams(location.search).get("view");
+  const retired = { pipeline: "analytics", pains: "studio", priority: "studio" };
+  if (retired[requested]) requested = retired[requested];
   if (requested && document.getElementById("view-" + requested)) {
     gate.hidden = true;
     document.getElementById("desk").hidden = false;

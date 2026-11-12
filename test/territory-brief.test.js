@@ -13,18 +13,18 @@ test('the brief is built from stored leads and does not invent a start', () => {
     writeFileSync(path.join(dir, 'fallback', 'demo_leads.json'), JSON.stringify({ leads: [] }));
     writeFileSync(path.join(dir, 'output', 'discovered-leads.json'), JSON.stringify({
       leads: [
-        { id: 'sf', company: 'Northwind Analytics', hq: '1 Market Street', priority: 'High', hook: 'Hiring', pain: 'Manual research', lat: 37.79, lng: -122.39, geo: { status: 'ok', precision: 'rooftop', confidence: 0.9, source: 'nominatim', resolvedAt: '2026-01-01' } },
-        { id: 'chi', company: 'Contoso Fabrication', hq: '500 West Madison', priority: 'Low', hook: '', pain: 'Old machines', lat: 41.88, lng: -87.63, geo: { status: 'ok', precision: 'street', confidence: 0.6, source: 'nominatim', resolvedAt: '2026-01-01' } },
+        { id: 'sf', company: 'Harbor Analytics', hq: '1 Market Street', priority: 'High', hook: 'Hiring', pain: 'Manual research', lat: 37.79, lng: -122.39, geo: { status: 'ok', precision: 'rooftop', confidence: 0.9, source: 'nominatim', resolvedAt: '2026-01-01' } },
+        { id: 'chi', company: 'River Works', hq: '500 West Madison', priority: 'Low', hook: '', pain: 'Old machines', lat: 41.88, lng: -87.63, geo: { status: 'ok', precision: 'street', confidence: 0.6, source: 'nominatim', resolvedAt: '2026-01-01' } },
       ],
     }));
     const facts = territoryFacts(dir, { lat: 37.79, lng: -122.39 });
     assert.equal(facts.placed, 2);
     assert.equal(facts.plan.label, 'estimate');
-    assert.equal(facts.plan.stops[0], 'Northwind Analytics');
+    assert.equal(facts.plan.stops[0], 'Harbor Analytics');
     assert.equal(facts.rings[0].count, 1);
     const prompt = briefPrompt(facts);
     assert.match(prompt, /Do not invent/);
-    assert.match(prompt, /Northwind Analytics/);
+    assert.match(prompt, /Harbor Analytics/);
     assert.equal(prompt.includes('secret'), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });

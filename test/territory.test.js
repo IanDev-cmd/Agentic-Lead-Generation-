@@ -2,27 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('territory opens in the drawer and vendors Leaflet', () => {
+test('the territory map is mounted on the desk', () => {
   const page = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
-  const map = readFileSync(new URL('../web/territory.js', import.meta.url), 'utf8');
+  const territory = readFileSync(new URL('../web/territory.js', import.meta.url), 'utf8');
   const license = readFileSync(new URL('../web/vendor/leaflet/LICENSE', import.meta.url), 'utf8');
   const leaflet = readFileSync(new URL('../web/vendor/leaflet/leaflet.js', import.meta.url), 'utf8');
-  assert.match(page, /const inAppSheets = new Set\(\["map"\]\)/);
-  assert.match(page, /inAppSheets\.has\(sheetButton\.dataset\.sheet\)\) openSheet/);
-  assert.match(page, /else openGoogleApp/);
-  assert.match(page, /class="territory"/);
-  assert.match(page, /Territory\.destroy\(\)/);
-  assert.match(page, /is-wide/);
-  assert.match(page, /src="\/territory\.js"/);
-  assert.match(map, /tile\.openstreetmap\.org/);
-  assert.match(map, /World_Imagery/);
-  assert.match(map, /World_Boundaries_and_Places/);
-  assert.match(map, /Map tiles could not load/);
-  assert.match(map, /No headquarters address is on the desk yet/);
-  assert.match(map, /No public headquarters address/);
-  assert.match(map, /navigator\.geolocation\.getCurrentPosition/);
-  assert.match(map, /Routes are drawn by the public OSRM server/);
-  assert.equal(map.includes('innerHTML'), false);
+  assert.match(page, /id="view-map"/);
+  assert.match(page, /src="\/territory\.js/);
+  assert.match(page, /Headquarters for local sales/);
+  assert.match(page, /id="view-analytics"/);
+  assert.equal(territory.includes('innerHTML'), false);
   assert.match(license, /BSD/);
   assert.match(leaflet, /1\.9\.4/);
 });

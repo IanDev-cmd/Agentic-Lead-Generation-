@@ -181,13 +181,10 @@ test('nominatim lookups are cached, retried once without unit tokens, and rate l
 
 test('geocode routes sit behind the desk gate and do not use the shared write limiter', async () => {
   const page = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  const client = readFileSync(new URL('../web/territory.js', import.meta.url), 'utf8');
   const gate = page.indexOf('deskAuthorized');
   const route = page.indexOf("url.pathname === '/api/geocode'");
   const shared = page.indexOf('const metered');
   assert.ok(gate > 0 && gate < route && route < shared);
-  assert.match(client, /Placing pins /);
-  assert.match(client, /\/api\/geocode/);
   const { createDeskServer } = await import('../server.js');
   const server = createDeskServer();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

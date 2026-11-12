@@ -245,7 +245,10 @@ test('the desk API returns leads and rejects a missing token', async () => {
   const leads = await fetch(`${base}/api/leads`);
   const denied = await fetch(`${base}/api/runs`, { method: 'POST' });
   assert.equal(health.status, 200);
-  assert.equal((await leads.json()).leads[0].company, 'Northwind Analytics');
+  const listed = await leads.json();
+  assert.equal(listed.ok, true);
+  assert.equal(listed.leads.some((lead) => lead.company === 'Northwind Analytics'), false);
+  assert.equal(listed.leads.some((lead) => lead.company === 'Contoso Fabrication'), false);
   assert.equal(denied.status, 401);
   const page = await fetch(`${base}/`);
   const html = await page.text();
