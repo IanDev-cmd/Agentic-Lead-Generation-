@@ -38,12 +38,14 @@ function hasHq(lead) {
 }
 
 function pointOf(lead) {
-  const lat = Number(lead.lat);
-  const lng = Number(lead.lng);
-  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-    return { lat, lng };
+  if (lead && lead.lat != null && lead.lat !== "" && lead.lng != null && lead.lng !== "") {
+    const lat = Number(lead.lat);
+    const lng = Number(lead.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat, lng };
+    }
   }
-  const match = String(lead.coords || "").match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  const match = String(lead && lead.coords || "").match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
   if (!match) return null;
   const parsedLat = Number(match[1]);
   const parsedLng = Number(match[2]);
@@ -88,7 +90,288 @@ function paintRoute(state) {
   const to = state.route.to ? state.route.to.label : "not set";
   state.ends.textContent = "From: " + from + ". To: " + to + ".";
   const stops = state.route.day.map((stop) => stop.label);
-  state.day.textContent = stops.length ? "Day route: " + stops.join(", ") + "." : "";
+  if (!state.dayHolding) state.day.textContent = stops.length ? "Day route: " + stops.join(", ") + "." : "";
+}
+
+function haversineKm(a, b) {
+  const toRad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toRad;
+  const dLng = (b.lng - a.lng) * toRad;
+  const lat1 = a.lat * toRad;
+  const lat2 = b.lat * toRad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 6371.0088 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function badgeIcon(L, text) {
+  return L.divIcon({
+    className: "pin-icon",
+    html: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#1a73e8"/><text x="14" y="18" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#ffffff">' + text + "</text></svg>",
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+function clearBucket(state, bucket) {
+  const list = state.layers && state.layers[bucket];
+  if (!list || !state.map) {
+    if (state.layers) state.layers[bucket] = [];
+    return;
+  }
+  for (const layer of list) state.map.removeLayer(layer);
+  state.layers[bucket] = [];
+}
+
+function drawSpiders(state) {
+  clearBucket(state, "spider");
+  if (!state.map || !window.L || !state.api.getSelected) return;
+  const selected = state.api.getSelected();
+  const origin = selected && pointOf(selected);
+  if (!origin) return;
+  const L = window.L;
+  for (const lead of state.api.getLeads()) {
+    if (lead.id === selected.id) continue;
+    const point = hasHq(lead) ? pointOf(lead) : null;
+    if (!point || haversineKm(origin, point) > 15) continue;
+    state.layers.spider.push(L.polyline([[origin.lat, origin.lng], [point.lat, point.lng]], {
+      color: "#1a73e8",
+      weight: 1,
+      opacity: 0.55,
+      dashArray: "2 6",
+    }).addTo(state.map));
+  }
+}
+
+async function drawRoad(state, stops, bucket, letters, describe) {
+  if (!state.map || !window.L || stops.length < 2) return;
+  if (state.routeAbort) state.routeAbort.abort();
+  const controller = new AbortController();
+  state.routeAbort = controller;
+  const timer = setTimeout(() => controller.abort(), 8000);
+  clearBucket(state, bucket);
+  const L = window.L;
+  stops.forEach((stop, index) => {
+    const text = letters ? (index === 0 ? "A" : "B") : String(index + 1);
+    state.layers[bucket].push(L.marker([stop.lat, stop.lng], {
+      icon: badgeIcon(L, text),
+      keyboard: false,
+      title: stop.label,
+    }).addTo(state.map));
+  });
+  try {
+    const coordPath = stops.map((stop) => stop.lng + "," + stop.lat).join(";");
+    const response = await fetch(MAP_ENDPOINTS.osrm + coordPath + "?overview=full&geometries=geojson", { signal: controller.signal });
+    if (!response.ok) throw new Error("route");
+    const body = await response.json();
+    const route = body.routes && body.routes[0];
+    if (!route || !route.geometry || !Array.isArray(route.geometry.coordinates)) throw new Error("route");
+    if (active !== state || state.routeAbort !== controller) return;
+    const line = route.geometry.coordinates.map((pair) => [pair[1], pair[0]]);
+    state.layers[bucket].push(L.polyline(line, { color: "#ffffff", weight: 8, opacity: 0.95 }).addTo(state.map));
+    state.layers[bucket].push(L.polyline(line, { color: "#1a73e8", weight: 4, opacity: 0.95 }).addTo(state.map));
+    describe(false, (Number(route.distance) / 1000).toFixed(1), Math.max(1, Math.round(Number(route.duration) / 60)));
+  } catch (error) {
+    if (active !== state || state.routeAbort !== controller) return;
+    const line = stops.map((stop) => [stop.lat, stop.lng]);
+    state.layers[bucket].push(L.polyline(line, { color: "#1a73e8", weight: 3, opacity: 0.8, dashArray: "8 8" }).addTo(state.map));
+    let total = 0;
+    for (let index = 1; index < stops.length; index += 1) total += haversineKm(stops[index - 1], stops[index]);
+    describe(true, total.toFixed(1), 0);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function describeEnds(state, straight, km, minutes) {
+  state.card.textContent = straight
+    ? km + " km. Straight-line distance, not a road route."
+    : km + " km, " + minutes + " min.";
+  say(state, state.card.textContent);
+}
+
+function drawDay(state) {
+  const stops = state.route.day.slice(0, 10);
+  if (stops.length < 2) {
+    clearBucket(state, "day");
+    state.dayHolding = false;
+    paintRoute(state);
+    return;
+  }
+  state.dayHolding = true;
+  drawRoad(state, stops, "day", false, (straight, km, minutes) => {
+    const names = stops.map((stop) => stop.label).join(", ");
+    state.day.textContent = straight
+      ? "Day route: " + names + ". " + km + " km. Straight-line distance, not a road route."
+      : "Day route: " + names + ". " + km + " km, " + minutes + " min.";
+    say(state, state.day.textContent);
+  });
+}
+
+function matchingLead(state, typed) {
+  const query = typed.toLowerCase();
+  return state.api.getLeads().find((lead) => lead.company.toLowerCase() === query || String(lead.hq || "").toLowerCase() === query) || null;
+}
+
+function fillSuggestions(state, input, list) {
+  const query = input.value.trim().toLowerCase();
+  list.replaceChildren();
+  input.removeAttribute("aria-activedescendant");
+  if (!query) {
+    list.hidden = true;
+    return;
+  }
+  const matches = state.api.getLeads().filter((lead) => (lead.company + " " + (lead.hq || "")).toLowerCase().includes(query)).slice(0, 6);
+  list.hidden = matches.length === 0;
+  matches.forEach((lead, index) => {
+    const option = document.createElement("li");
+    option.setAttribute("role", "option");
+    option.id = input.id + "-opt-" + index;
+    option.tabIndex = -1;
+    option.textContent = lead.hq ? lead.company + " — " + lead.hq : lead.company;
+    option.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      chooseTypedLead(state, input, list, lead);
+    });
+    list.append(option);
+  });
+}
+
+function chooseTypedLead(state, input, list, lead) {
+  const point = pointOf(lead);
+  list.hidden = true;
+  input.value = lead.company;
+  if (!point) {
+    say(state, "No pin for " + lead.company + ". The headquarters is not on the map yet.");
+    return;
+  }
+  remember(state, input.dataset.end, lead, point);
+}
+
+async function resolveField(state, field) {
+  const input = field.input;
+  const typed = input.value.trim();
+  const kind = input.dataset.end;
+  if (!typed) {
+    state.route[kind] = null;
+    paintRoute(state);
+    return;
+  }
+  if (state.route[kind] && typed === state.route[kind].label) return;
+  if (/^my location$/i.test(typed)) {
+    if (!state.here) {
+      say(state, "Locate me first. This position stays in the browser until you route from it.");
+      return;
+    }
+    state.route[kind] = { label: "My location", lat: state.here.lat, lng: state.here.lng };
+    input.value = "My location";
+    field.list.hidden = true;
+    paintRoute(state);
+    return;
+  }
+  const local = matchingLead(state, typed);
+  if (local) {
+    chooseTypedLead(state, input, field.list, local);
+    return;
+  }
+  field.list.hidden = true;
+  say(state, "Looking up " + typed + ".");
+  try {
+    const response = await fetch("/api/geocode/search?q=" + encodeURIComponent(typed.slice(0, 200)), { credentials: "same-origin" });
+    if (active !== state) return;
+    if (response.status === 429) {
+      say(state, "The geocoder is busy. Nothing was searched.");
+      return;
+    }
+    const body = await response.json();
+    const candidate = body.candidates && body.candidates[0];
+    if (!response.ok || !candidate) {
+      say(state, "That place could not be found.");
+      return;
+    }
+    state.route[kind] = { label: candidate.displayName || typed, lat: candidate.lat, lng: candidate.lng };
+    input.value = state.route[kind].label;
+    paintRoute(state);
+    say(state, (kind === "from" ? "From is " : "To is ") + state.route[kind].label + ".");
+  } catch {
+    if (active === state) say(state, "That place could not be found.");
+  }
+}
+
+function routeField(state, kind) {
+  const wrap = document.createElement("label");
+  const caption = document.createElement("span");
+  caption.textContent = kind;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.id = "territory-" + kind.toLowerCase();
+  input.dataset.end = kind.toLowerCase();
+  input.autocomplete = "off";
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", input.id + "-list");
+  const list = document.createElement("ul");
+  list.className = "territory-suggest";
+  list.id = input.id + "-list";
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-label", kind + " matches");
+  list.hidden = true;
+  let activeIndex = -1;
+  input.addEventListener("input", () => {
+    activeIndex = -1;
+    fillSuggestions(state, input, list);
+  });
+  input.addEventListener("keydown", (event) => {
+    const options = [...list.querySelectorAll("[role=option]")];
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!options.length) return;
+      activeIndex = event.key === "ArrowDown" ? Math.min(options.length - 1, activeIndex + 1) : Math.max(0, activeIndex - 1);
+      options.forEach((option, index) => option.setAttribute("aria-selected", index === activeIndex ? "true" : "false"));
+      input.setAttribute("aria-activedescendant", options[activeIndex].id);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (activeIndex >= 0 && options[activeIndex]) options[activeIndex].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      else resolveField(state, { input, list });
+      return;
+    }
+    if (event.key === "Escape") list.hidden = true;
+  });
+  wrap.append(caption, input, list);
+  return { wrap, input, list };
+}
+
+async function goRoute(state) {
+  if (!state.fromInput || !state.toInput) return;
+  await resolveField(state, state.fromInput);
+  await resolveField(state, state.toInput);
+  if (active !== state) return;
+  if (!state.route.from || !state.route.to) {
+    say(state, "Choose a From and a To before drawing a route.");
+    return;
+  }
+  drawRoad(state, [state.route.from, state.route.to], "road", true, (straight, km, minutes) => describeEnds(state, straight, km, minutes));
+}
+
+function swapEnds(state) {
+  const from = state.route.from;
+  state.route.from = state.route.to;
+  state.route.to = from;
+  const fromValue = state.fromInput.input.value;
+  state.fromInput.input.value = state.toInput.input.value;
+  state.toInput.input.value = fromValue;
+  paintRoute(state);
+}
+
+function useHere(state) {
+  if (!state.here) {
+    say(state, "Locate me first. This position stays in the browser until you route from it.");
+    return;
+  }
+  state.route.from = { label: "My location", lat: state.here.lat, lng: state.here.lng };
+  state.fromInput.input.value = "My location";
+  paintRoute(state);
+  say(state, "From is My location.");
 }
 
 function remember(state, kind, lead, point) {
@@ -101,10 +384,14 @@ function remember(state, kind, lead, point) {
     }
     state.route.day.push(place);
     say(state, lead.company + " was added to the day route.");
-  } else {
-    state.route[kind] = place;
-    say(state, (kind === "from" ? "From is " : "To is ") + lead.company + ".");
+    paintRoute(state);
+    drawDay(state);
+    return;
   }
+  state.route[kind] = place;
+  if (kind === "from" && state.fromInput) state.fromInput.input.value = lead.company;
+  if (kind === "to" && state.toInput) state.toInput.input.value = lead.company;
+  say(state, (kind === "from" ? "From is " : "To is ") + lead.company + ".");
   paintRoute(state);
 }
 
@@ -347,6 +634,7 @@ function refreshPins(state) {
     state.map.fitBounds(points, { padding: [28, 28], maxZoom: 12 });
     state.fittedCount = points.length;
   }
+  drawSpiders(state);
 }
 
 function pendingLeads(state) {
@@ -432,6 +720,7 @@ function mountMap(state, L) {
   }
   if (points.length) state.map.fitBounds(points, { padding: [28, 28], maxZoom: 12 });
   state.fittedCount = points.length;
+  drawSpiders(state);
   const drawer = document.getElementById("studioDrawer");
   state.onTransition = (event) => {
     if (event.propertyName === "transform" && state.map) state.map.invalidateSize();
@@ -492,7 +781,13 @@ window.Territory = {
       fittedCount: 0,
       placing: false,
       placeAbort: null,
+      routeAbort: null,
       L: null,
+      fromInput: null,
+      toInput: null,
+      card: null,
+      dayHolding: false,
+      layers: { road: [], day: [], spider: [] },
       route: { from: null, to: null, day: [] },
     };
     active = state;
@@ -528,12 +823,21 @@ window.Territory = {
     state.host.append(state.exit);
     const form = document.createElement("form");
     form.className = "territory-route";
-    form.addEventListener("submit", (event) => event.preventDefault());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      goRoute(state);
+    });
     const disclosure = document.createElement("p");
     disclosure.textContent = "Routes are drawn by the public OSRM server.";
+    state.fromInput = routeField(state, "From");
+    state.toInput = routeField(state, "To");
+    const swap = button("Swap", () => swapEnds(state));
+    const mine = button("My location", () => useHere(state));
+    const go = button("Go", () => goRoute(state));
     state.ends = document.createElement("p");
     state.day = document.createElement("p");
-    form.append(disclosure, state.ends, state.day);
+    state.card = document.createElement("p");
+    form.append(disclosure, state.fromInput.wrap, swap, state.toInput.wrap, mine, go, state.ends, state.day, state.card);
     paintRoute(state);
     state.list = document.createElement("div");
     state.list.className = "territory-list";
@@ -559,6 +863,7 @@ window.Territory = {
     if (!state) return;
     state.token += 1;
     if (state.placeAbort) state.placeAbort.abort();
+    if (state.routeAbort) state.routeAbort.abort();
     const drawer = document.getElementById("studioDrawer");
     if (state.onTransition && drawer) drawer.removeEventListener("transitionend", state.onTransition);
     if (state.onFullscreen) {
@@ -581,5 +886,8 @@ window.Territory = {
       return true;
     }
     return leaveExpanded(state);
+  },
+  sync() {
+    if (active) drawSpiders(active);
   },
 };

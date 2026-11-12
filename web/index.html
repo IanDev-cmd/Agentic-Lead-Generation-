@@ -463,7 +463,12 @@
     border: 0; background: #f1f3f4; border-radius: 999px; padding: 8px 14px;
     font: 600 13px Inter, sans-serif; color: #202124; cursor: pointer;
   }
-  .territory-note, .territory-route p { margin: 0; font: 400 13px/1.45 Inter, sans-serif; color: #3c4043; }
+  .territory-note, .territory-route p { margin: 0; flex: 1 1 100%; font: 400 13px/1.45 Inter, sans-serif; color: #3c4043; }
+  .territory-route label { position: relative; display: flex; flex-direction: column; gap: 4px; flex: 1 1 140px; min-width: 0; font: 600 12px Inter, sans-serif; color: #3c4043; }
+  .territory-route input { width: 100%; box-sizing: border-box; border: 1px solid #dadce0; border-radius: 12px; padding: 8px 10px; font: 400 14px Inter, sans-serif; color: #202124; background: #fff; }
+  .territory-suggest { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16); max-height: 180px; overflow: auto; }
+  .territory-suggest li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font: 400 13px Inter, sans-serif; color: #202124; }
+  .territory-suggest li[aria-selected="true"], .territory-suggest li:hover { background: #eef1f6; }
   .territory-map { position: relative; height: min(420px, 58vh); min-height: 220px; border-radius: 16px; overflow: hidden; background: #e8eaed; }
   .territory-map.leaflet-container { width: 100%; height: 100%; font: 12px/1.4 Inter, sans-serif; }
   .territory-map.is-expanded { position: fixed; inset: 0; z-index: 80; width: 100%; height: 100%; min-height: 0; border-radius: 0; }
@@ -487,7 +492,7 @@
   .territory-list button:hover, .territory-list button:focus-visible { background: #eef1f6; outline: 2px solid #174ea6; }
   @media (max-width: 420px) {
     .territory-map { height: 240px; }
-    .territory-tools button, .pin-card button { min-height: 44px; }
+    .territory-tools button, .territory-route button, .pin-card button { min-height: 44px; }
   }
 
   #view-lead { width: 100%; margin: 0; height: 100dvh; overflow: auto; padding: 64px 0 0; background: linear-gradient(90deg, #f4f4f4 0 50%, #070707 50% 100%); }
@@ -1095,7 +1100,7 @@
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <p class="status-live" id="live" aria-live="polite"></p>
-<script src="/territory.js"></script>
+<script src="/territory.js?v=4"></script>
 <script>
 const brandPath = {
   sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
@@ -1181,6 +1186,10 @@ let slide = 0;
 let timer = null;
 let phase = "idle";
 let selected = null;
+function pickLead(lead) {
+  selected = lead || null;
+  if (window.Territory && window.Territory.sync) window.Territory.sync();
+}
 const phases = [
   ["plan", "Planning"],
   ["search", "Searching"],
@@ -1359,9 +1368,10 @@ function openSheet(name) {
       getLeads: () => leads,
       safeUrl,
       openLead(lead) {
-        selected = lead;
+        pickLead(lead);
         show("lead");
       },
+      getSelected: () => selected,
       setLive,
       applyLeads(incoming) {
         if (!Array.isArray(incoming)) return;
@@ -1426,7 +1436,7 @@ document.body.addEventListener("click", (event) => {
   const leadButton = event.target.closest("[data-lead]");
   if (leadButton) {
     const lead = leads.find((item) => item.id === leadButton.dataset.id);
-    if (lead) selected = lead;
+    if (lead) pickLead(lead);
     show("lead");
     return;
   }
@@ -1439,7 +1449,7 @@ document.body.addEventListener("click", (event) => {
   if (sheetButton && !sheetButton.closest("#gate")) {
     if (sheetButton.dataset.id) {
       const lead = leads.find((item) => item.id === sheetButton.dataset.id);
-      if (lead) selected = lead;
+      if (lead) pickLead(lead);
     }
     openSheet(sheetButton.dataset.sheet);
     if (sheetButton.dataset.start === "1") startRun();
@@ -1449,7 +1459,7 @@ document.body.addEventListener("click", (event) => {
   if (!button || button.closest("#gate")) return;
   if (button.dataset.id) {
     const lead = leads.find((item) => item.id === button.dataset.id);
-    if (lead) selected = lead;
+    if (lead) pickLead(lead);
     show("lead");
     return;
   }
@@ -1581,7 +1591,7 @@ function bindLeadActions() {
 function act(name, id) {
   const lead = leads.find((item) => item.id === id);
   if (!lead) return;
-  if (name === "report") { selected = lead; show("lead"); return; }
+  if (name === "report") { pickLead(lead); show("lead"); return; }
   if (name === "research") {
     const profile = profileBody();
     startRun({
@@ -1604,7 +1614,7 @@ function act(name, id) {
     return;
   }
   if (name === "approve") {
-    selected = lead;
+    pickLead(lead);
     approveLead(lead);
   }
 }
@@ -2056,7 +2066,7 @@ async function loadDesk() {
   if (!response.ok) throw new Error("The lead list was refused.");
   const body = await response.json();
   leads = Array.isArray(body.leads) ? body.leads : [];
-  selected = leads[0] || null;
+  pickLead(leads[0] || null);
   const requested = new URLSearchParams(location.search).get("view");
   if (requested && document.getElementById("view-" + requested)) {
     gate.hidden = true;
