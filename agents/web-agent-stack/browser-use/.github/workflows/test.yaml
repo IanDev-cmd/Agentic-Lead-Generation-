@@ -1,0 +1,65 @@
+name: test
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+      - v1
+      - stable
+      - 'releases/**'
+    tags:
+      - '*'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  ANONYMIZED_TELEMETRY: 'false'
+
+jobs:
+  unit:
+    # Everything that needs no browser: REPL transport, env allowlist, secrets, Browser lifecycle (mocked cloud),
+    # models, 0.x compat, CLI. Windows gates the worker transport (no POSIX fd passing).
+    name: unit (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.11']
+        include:
+          - os: ubuntu-latest
+            python: '3.12'
+          - os: ubuntu-latest
+            python: '3.13'
+          - os: ubuntu-latest
+            python: '3.14'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --dev --all-extras --python ${{ matrix.python }}
+      - run: uv run --no-sync pytest tests -m "not chrome"
+
+  chrome:
+    # End to end against a real headless Chrome with a scripted model (no provider calls, no cloud browsers).
+    name: chrome (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --dev --all-extras --python 3.11
+      # Without google-chrome every chrome test would skip and the job would pass: fail instead, and list skips (-rs)
+      - run: |
+          CHROME="$(command -v google-chrome)" || { echo "google-chrome not found on PATH" >&2; exit 1; }
+          CHROME="$CHROME" uv run --no-sync pytest tests -m chrome -rs

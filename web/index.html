@@ -339,8 +339,8 @@
     .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line, .motion-step.is-now .motion-dot { animation: none; stroke-dashoffset: 0; }
   }
   .grid {
-    width: min(980px, 100%);
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
+    width: min(1180px, 100%);
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
   }
   .tile {
     display: flex; align-items: center; gap: 12px; text-align: left;
@@ -391,6 +391,21 @@
   .research-bar h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.02em; }
   .file-card b { display: block; font-size: 15px; }
   .file-card small { display: block; margin-top: 2px; color: #5f6368; font-size: 13px; font-weight: 500; }
+  .agent-ask { display: flex; gap: 8px; margin: 0 0 14px; }
+  .agent-ask input {
+    flex: 1; min-width: 0; min-height: 48px; border: 0; border-radius: 999px;
+    padding: 0 18px; font: inherit; color: #202124;
+  }
+  .agent-ask button {
+    border: 0; border-radius: 999px; background: #fff; color: #202124;
+    min-height: 48px; padding: 0 18px; font-weight: 700;
+  }
+  .agent-keys { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+  .agent-keys span {
+    border-radius: 999px; background: rgba(255,255,255,0.16); color: #fff;
+    padding: 6px 12px; font-size: 13px; font-weight: 650;
+  }
+  .agent-block { margin: 8px 0 10px; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; }
 
   .studio {
     width: min(1240px, calc(100% - 28px));
@@ -1058,6 +1073,8 @@
     <button type="button" data-view="strategy">Strategy</button>
     <button type="button" data-view="map">Territory</button>
     <button type="button" data-view="workspace">Workspace</button>
+    <button type="button" data-view="linkedin">LinkedIn</button>
+    <button type="button" data-view="social">Social</button>
   </nav>
   <main id="main">
     <section class="view" id="view-home" hidden>
@@ -1156,6 +1173,30 @@
       <h1>Leads</h1>
       <p class="file-sub" id="leadBatchTitle">Companies in this batch.</p>
       <div id="leadCards"></div>
+    </section>
+
+    <section class="view file-stage" id="view-linkedin" hidden>
+      <h1>LinkedIn</h1>
+      <p class="file-sub">Companies and people from several public LinkedIn keyword searches.</p>
+      <form class="agent-ask" id="linkedinForm">
+        <input id="linkedinQuery" type="text" placeholder="edtech" autocomplete="off" aria-label="LinkedIn topic">
+        <button type="submit">Search</button>
+      </form>
+      <p class="file-sub" id="linkedinStatus"></p>
+      <div class="agent-keys" id="linkedinKeys"></div>
+      <div id="linkedinResults"></div>
+    </section>
+
+    <section class="view file-stage" id="view-social" hidden>
+      <h1>Social</h1>
+      <p class="file-sub">Companies and people on X, Instagram, YouTube, Reddit, and Facebook.</p>
+      <form class="agent-ask" id="socialForm">
+        <input id="socialQuery" type="text" placeholder="edtech" autocomplete="off" aria-label="Social topic">
+        <button type="submit">Search</button>
+      </form>
+      <p class="file-sub" id="socialStatus"></p>
+      <div class="agent-keys" id="socialKeys"></div>
+      <div id="socialResults"></div>
     </section>
 
     <section class="view" id="view-map" hidden>
@@ -1350,6 +1391,7 @@ const glyph = {
   activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
   bars: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   map: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>',
   slides: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
   tasks: '<path d="M11 6h10"/><path d="M11 12h10"/><path d="M11 18h10"/><path d="M3 6h1"/><path d="M3 12h1"/><path d="M3 18h1"/>',
@@ -1388,7 +1430,9 @@ const tiles = [
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
   { view: "analytics", title: "Analytics", copy: "ICP match and review stages", icon: "sparkles", color: "#1a73e8" },
   { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" },
-  { view: "strategy", title: "Strategy", copy: "Pipeline and go-to-market", icon: "activity", color: "#1e8e3e" }
+  { view: "strategy", title: "Strategy", copy: "Pipeline and go-to-market", icon: "activity", color: "#1e8e3e" },
+  { view: "linkedin", title: "LinkedIn", copy: "Companies and people", icon: "users", color: "#0a66c2" },
+  { view: "social", title: "Social", copy: "Other public platforms", icon: "sparkles", color: "#e37400" }
 ];
 const tools = [
   { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
@@ -1407,6 +1451,8 @@ const menuItems = [
   ["analytics", "Analytics"],
   ["strategy", "Strategy"],
   ["map", "Territory"],
+  ["linkedin", "LinkedIn"],
+  ["social", "Social"],
   ["draft", "Gmail draft"]
 ];
 const dotViews = [
@@ -1416,7 +1462,9 @@ const dotViews = [
   ["workspace", "Google Workspace"],
   ["analytics", "Analytics"],
   ["strategy", "Strategy"],
-  ["map", "Territory"]
+  ["map", "Territory"],
+  ["linkedin", "LinkedIn"],
+  ["social", "Social"]
 ];
 let sourceSeq = 1;
 const sources = [];
@@ -1934,6 +1982,49 @@ function deskSend(method, url, body, allowRetry) {
 function postDesk(url, body) {
   return deskSend("POST", url, body, true);
 }
+function agentCard(row) {
+  const meta = [row.role, row.platform, row.note].filter(Boolean).join(" · ");
+  const href = /^https?:\/\//i.test(row.url || "") ? row.url : "";
+  const open = href
+    ? `<a class="file-card" href="${escapeHtml(href)}" target="_blank" rel="noopener">`
+    : `<div class="file-card">`;
+  const close = href ? "</a>" : "</div>";
+  return `${open}<span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(meta || "Public page")}</small></span>${close}`;
+}
+function paintAgent(channel, body) {
+  document.getElementById(channel + "Keys").innerHTML = (body.keywords || []).map((keyword) => `<span>${escapeHtml(keyword)}</span>`).join("");
+  const companies = (body.companies || []).map(agentCard).join("") || `<p class="file-sub">No companies came back.</p>`;
+  const people = (body.people || []).map(agentCard).join("") || `<p class="file-sub">No people came back.</p>`;
+  document.getElementById(channel + "Results").innerHTML = `<p class="agent-block">COMPANIES</p>${companies}<p class="agent-block">PEOPLE</p>${people}`;
+  document.getElementById(channel + "Status").textContent = body.explanation || "Search finished. Nothing was posted.";
+}
+function bindAgent(channel) {
+  document.getElementById(channel + "Form").onsubmit = async (event) => {
+    event.preventDefault();
+    const query = document.getElementById(channel + "Query").value.trim();
+    const status = document.getElementById(channel + "Status");
+    if (!query) {
+      status.textContent = "Add a topic first. Nothing was searched.";
+      return;
+    }
+    status.textContent = "Running several keyword searches. Nothing is posted.";
+    document.getElementById(channel + "Keys").innerHTML = "";
+    document.getElementById(channel + "Results").innerHTML = "";
+    try {
+      const response = await postDesk("/api/agents/search", { channel, query, ...profileBody() });
+      const body = await response.json();
+      if (!response.ok || !body.ok) {
+        status.textContent = body.error || "The agent did not answer. Nothing was saved.";
+        return;
+      }
+      paintAgent(channel, body);
+    } catch {
+      status.textContent = "The desk could not reach the agent. Nothing was saved.";
+    }
+  };
+}
+bindAgent("linkedin");
+bindAgent("social");
 function approveLead(lead) {
   const profile = profileBody();
   postDesk("/api/leads/" + encodeURIComponent(lead.id) + "/approve", {

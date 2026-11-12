@@ -1,0 +1,137 @@
+[project]
+name = "browser-use"
+description = "Browser agent on Pydantic AI: one persistent Python REPL on raw CDP, cloud or local Chrome"
+authors = [{ name = "Gregor Zunic" }]
+version = "1.0.3"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<4.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "browser-harness==0.1.13",
+    "pydantic==2.14.3",
+    "pydantic-ai-slim[openai,anthropic,google]==2.66.0",
+    "google-genai==2.34.0",
+    "genai-prices==0.2.1",
+    "idna==3.20",
+    "pillow==12.3.0",
+    "python-dotenv==1.2.4",
+    "uuid7==0.1.0",
+    "mcp==2.3.0",
+]
+# browser-harness: CDP daemon, browser helpers, CLI, auth (also pulls cdp-use, fetch-use, websockets)
+# genai-prices: cost per run (imported directly). pydantic-ai-slim[openai,anthropic,google]: agent loop (Anthropic and Google built in so model strings just work) (keep it below 3 when bumping the pin: the engine uses its capabilities API); OpenAI Responses (official API, gateway) and chat completions (base_url)
+# pillow: the REPL worker validates and downsizes images before they reach the model
+# python-dotenv: .env loading; uuid7: the anonymous telemetry device id (telemetry is sent with the standard library)
+# mcp: `browser-use --cli-mcp` (the biggest CLI surface) must work without extras
+# google-genai: keep the pin below 3 when bumping; 3.0.0 calls the Gemini API on v1, which rejects tools, so every Gemini run fails on its first request.
+# Pydantic AI caps it at <3 the same way (pydantic/pydantic-ai#12700, unreleased on 11-08); lift with pydantic-ai#12732.
+
+[project.optional-dependencies]
+anthropic = []  # kept so `browser-use[anthropic]` installs resolve; Anthropic is a core dependency
+google = []  # same for Google
+mcp = []  # kept so existing `browser-use[mcp]` installs resolve; mcp is a core dependency
+cli = []  # same for `browser-use[cli]` (0.x docs, install-script.yml); the CLI is part of the package
+all = ["browser-use[anthropic,google]"]
+
+[project.urls]
+Homepage = "https://browser-use.com"
+Documentation = "https://docs.browser-use.com"
+Repository = "https://github.com/browser-use/browser-use"
+"Terms of Service" = "https://browser-use.com/legal/terms-of-service"
+"Privacy Policy" = "https://browser-use.com/privacy/"
+
+[project.scripts]
+browser-use = "browser_use.cli:main"  # Browser Use CLI for agents
+browseruse = "browser_use.cli:main"  # Alias for browser-use
+browser-use-tui = "browser_use.cli:browser_use_tui_main"  # Deprecated alias for browser-use
+
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+
+[tool.codespell]
+ignore-words-list = "bu,wit,dont,cant,wont,re-use,re-used,re-using,re-usable,thats,doesnt,doubleclick,finaly,finalY,iterm"
+skip = "*.json"
+
+[tool.ruff]
+line-length = 130
+fix = true
+
+[tool.ruff.lint]
+select = ["ASYNC", "E", "F", "FAST", "I", "PLE"]
+ignore = [
+    "ASYNC109",
+    "E101",
+    "E402",
+    "E501",
+    "F841",
+    "E731",
+    "W291",
+] # TODO: determine if adding timeouts to all the unbounded async functions is needed / worth-it so we can un-ignore ASYNC109
+unfixable = ["E101", "E402", "E501", "F841", "E731"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "tab"
+line-ending = "lf"
+docstring-code-format = true
+docstring-code-line-length = 140
+skip-magic-trailing-comma = false
+
+[tool.pyright]
+typeCheckingMode = "basic"
+pythonVersion = "3.11"
+include = ["browser_use", "examples"]  # tests use Pydantic AI test internals
+exclude = [".venv/", ".venv*/", ".git/", "__pycache__/", "**/site-packages/"]
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false
+
+
+[tool.hatch.build]
+include = [
+    "browser_use/**/*.py",
+    "browser_use/skills/**/*.md",
+    "browser_use/py.typed",
+]
+
+[tool.pytest.ini_options]
+timeout = 300
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["chrome: needs a local Chrome/Chromium (skipped when none is found)"]
+testpaths = ["tests"]
+addopts = "--strict-markers --tb=short"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv]
+# Supply-chain freeze: uv.lock resolves only packages published before this time.
+# Move it forward on purpose (uv lock --upgrade), never implicitly.
+exclude-newer = "2026-11-09T09:48:30Z"
+
+[dependency-groups]
+dev = [
+    "ruff==0.14.14",
+    "build==1.4.0",
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "pytest-timeout==2.4.0",
+    "pre-commit==4.5.1",
+    "codespell==2.4.1",
+    "pyright==1.1.408",
+    "pyyaml==6.0.3",  # tests/ci/test_workflows.py reads the workflow files
+]

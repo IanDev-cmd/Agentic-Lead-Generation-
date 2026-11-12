@@ -10,6 +10,7 @@ import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
+import { companyLeads, runAgentSearch } from './lib/agents.js';
 import { collectSignals, mergeLeadRecords } from './lib/collectors/index.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 import QRCode from 'qrcode';
@@ -233,7 +234,7 @@ async function handleApi(request, response, url) {
     }
     return;
   }
-  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || url.pathname === '/api/territory/brief' || /\/approve$/.test(url.pathname);
+  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || url.pathname === '/api/agents/search' || url.pathname === '/api/territory/brief' || /\/approve$/.test(url.pathname);
   if (metered && limited()) {
     send(response, 429, { ok: false, error: 'Too many desk writes. Wait a few minutes. Nothing was sent.' });
     return;
@@ -306,6 +307,49 @@ async function handleApi(request, response, url) {
       : { action: 'links' };
     const outcome = await callAppsScript(payload);
     send(response, outcome.status, outcome.body);
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/agents/search') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The agent request was not JSON. Nothing was searched.' });
+      return;
+    }
+    const channel = body.channel === 'social' ? 'social' : body.channel === 'linkedin' ? 'linkedin' : '';
+    const query = String(body.query || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
+    if (!channel || !query) {
+      send(response, 422, { ok: false, error: 'The agent needs a topic. Nothing was searched.' });
+      return;
+    }
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+      send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was searched.' });
+      return;
+    }
+    try {
+      const found = await runAgentSearch({
+        apiKey,
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        query,
+        channel,
+        profile: businessEnv(body),
+      });
+      const leads = rememberLeads(root, companyLeads(found.companies, channel));
+      send(response, 200, {
+        ok: true,
+        channel,
+        keywords: found.keywords,
+        explanation: found.explanation,
+        companies: found.companies,
+        people: found.people,
+        leads,
+      });
+    } catch (error) {
+      const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
+      send(response, 502, { ok: false, error: message || 'The agent did not answer. Nothing was saved.' });
+    }
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/ask') {
