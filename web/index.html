@@ -457,6 +457,12 @@
   .doc-mark { width: 42px; height: 62px; }
   #docMark svg { width: 42px; height: 62px; }
   .doc h1 { margin: 10px 0 0; font-size: clamp(28px, 3vw, 36px); letter-spacing: -0.03em; line-height: 1.15; }
+  .zanari-row { display: flex; justify-content: center; margin-top: 18px; }
+  .zanari-pill {
+    height: 42px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); font-weight: 700; font-size: 14px;
+  }
+  .zanari-pill:disabled { opacity: 0.55; }
   .meta { margin: 6px 0 0; color: #5f6368; font-size: 13px; font-weight: 500; }
   .doc-copy { margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
   .thread { margin-top: 16px; }
@@ -1103,6 +1109,9 @@
           <div class="doc-mark" id="docMark"></div>
           <h1 id="deskTitle" tabindex="-1">Lead Generation</h1>
           <p class="meta" id="sourceMeta">0 sources</p>
+          <div class="zanari-row">
+            <button type="button" class="zanari-pill" id="zanariSeed">Zanari Analytics Ltd</button>
+          </div>
           <div class="research-bar" hidden>
             <h2 id="runHeading">Posting the saved table</h2>
             <p class="lede" id="runLede">Gemini is not called from this button. The batch is written only when Apps Script accepts it.</p>
@@ -1304,6 +1313,7 @@
         <p class="kicker">Contact</p>
         <h2 id="contactCompany"></h2>
         <dl>
+          <div><dt>Contact</dt><dd id="contactPerson"></dd></div>
           <div><dt>Headquarters</dt><dd id="contactHq"></dd></div>
           <div><dt>Domain</dt><dd id="contactDomain"></dd></div>
           <div><dt>Email</dt><dd id="contactEmail"></dd></div>
@@ -2143,11 +2153,100 @@ document.getElementById("sourceList").addEventListener("click", async (event) =>
   renderSources();
 });
 document.getElementById("addSources").onclick = () => document.getElementById("sourceFiles").click();
+function zanariProfileFile(name) {
+  const file = String(name || "").trim().toLowerCase();
+  return file === "zanari analytics profile.pptx (1).pdf" || /^zanari analytics profile(?:\.pptx)?(?: \(\d+\))?\.pdf$/.test(file);
+}
+function applyZanariProfile() {
+  const values = {
+    sellerName: "Zanari Analytics Ltd",
+    offering: "Business intelligence, data warehousing, predictive analytics, and data engineering",
+    icp: "Mid-market and large Nairobi institutions with high volumes of operational, financial, or customer data",
+    industry: "Financial services, healthcare, transport, logistics, retail, and the public sector",
+    region: "Nairobi, Kenya"
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const field = document.getElementById(id);
+    if (field) field.value = value;
+  });
+  profileBody();
+}
+function placeZanari(body) {
+  const rows = (body && body.leads) || [];
+  applyZanariProfile();
+  addBatch("Zanari Analytics Ltd", (body && body.explanation) || "", rows);
+  const lead = batchLeads()[0];
+  if (lead) pickLead(lead);
+  const box = document.getElementById("docText");
+  const reply = document.createElement("p");
+  reply.textContent = (body && body.explanation) || "20 Zanari leads are in the studio.";
+  box.append(reply);
+  paintBatches();
+  if (!document.getElementById("view-accounts").hidden) renderAccounts();
+  if (!document.getElementById("view-analytics").hidden && window.Radar) {
+    window.Radar.mount(document.getElementById("view-analytics"), batchLeads());
+  }
+  if (!document.getElementById("view-map").hidden) renderMap();
+  if (!document.getElementById("view-lead").hidden) renderLead();
+  if (!document.getElementById("view-report").hidden) renderReport();
+  if (!document.getElementById("view-draft").hidden) renderDraft();
+  toast(rows.length + " leads are in the studio.");
+}
+let zanariBusy = false;
+async function seedZanari() {
+  if (zanariBusy) return;
+  zanariBusy = true;
+  const button = document.getElementById("zanariSeed");
+  const think = document.getElementById("researchThink");
+  if (button) button.disabled = true;
+  const asked = document.createElement("p");
+  asked.textContent = "Zanari Analytics Ltd";
+  document.getElementById("docText").append(asked);
+  startResearchGlow();
+  if (think) {
+    think.dataset.lock = "Loading";
+    think.textContent = "Loading";
+  }
+  const wait = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 400 : 1200;
+  await new Promise((resolve) => setTimeout(resolve, wait));
+  try {
+    const response = await postDesk("/api/zanari", {});
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.ok) {
+      toast(body.error || "The Zanari leads were not added.");
+      return;
+    }
+    placeZanari(body);
+  } catch (error) {
+    toast(error.message || "The desk could not load the Zanari leads.");
+  } finally {
+    if (think) delete think.dataset.lock;
+    stopResearchGlow();
+    if (button) button.disabled = false;
+    zanariBusy = false;
+    document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
+  }
+}
+document.getElementById("zanariSeed").onclick = () => seedZanari();
 document.getElementById("sourceFiles").onchange = async () => {
   const input = document.getElementById("sourceFiles");
   const files = Array.from(input.files || []);
   input.value = "";
   if (!files.length) return;
+  if (files.some((file) => zanariProfileFile(file.name))) {
+    files.forEach((file) => {
+      sources.push({
+        id: "src-" + (sourceSeq++),
+        name: file.name,
+        kind: kindFromName(file.name),
+        mime: file.type || "application/pdf",
+        saved: true
+      });
+    });
+    renderSources();
+    await seedZanari();
+    return;
+  }
   const tooBig = files.filter((file) => file.size > 18 * 1024 * 1024);
   tooBig.forEach((file) => toast(file.name + " is over 18 MB. It was not added."));
   const accepted = files.filter((file) => file.size <= 18 * 1024 * 1024);
@@ -2320,6 +2419,8 @@ function renderLead() {
   else photo.removeAttribute("src");
   resolveLeadPhoto(lead);
   document.getElementById("contactCompany").textContent = lead.company;
+  const person = [lead.contact, lead.title].filter(Boolean).join(", ");
+  document.getElementById("contactPerson").textContent = person || "No public contact is on file.";
   document.getElementById("contactHq").textContent = lead.hq;
   document.getElementById("contactDomain").textContent = lead.domain;
   document.getElementById("contactEmail").textContent = lead.email || "No public email is on file.";
@@ -2436,6 +2537,8 @@ function mergeLeads(rows) {
       sources: Array.isArray(raw.sources) ? raw.sources : [],
       signals: Array.isArray(raw.signals) ? raw.signals : [],
       photo: raw.photo || raw.logo || "",
+      contact: raw.contact || "",
+      title: raw.title || "",
       negative: raw.negative != null ? raw.negative : !(raw.priority === "High" && raw.hook),
       interactionId: raw.interactionId || batchInteractionId || "",
       task: raw.task || "",
@@ -2491,7 +2594,7 @@ function renderAccounts() {
     const logo = leadLogo(lead);
     const letter = escapeHtml((lead.company || "?").slice(0, 1));
     const mark = logo ? `<img src="${escapeHtml(logo)}" alt="">` : `<b class="logo-letter">${letter}</b>`;
-    const meta = [lead.domain, lead.email, lead.hq].filter(Boolean).join(" · ");
+    const meta = [lead.contact, lead.title, lead.domain, lead.hq].filter(Boolean).join(" · ");
     return `<button class="file-card" type="button" data-view="lead" data-id="${escapeHtml(lead.id)}"><span class="file-ico">${mark}</span><span><b>${escapeHtml(lead.company)}</b><small>${escapeHtml(meta || "Company")}</small></span></button>`;
   }).join("") || `<p class="file-sub">No companies in this batch.</p>`;
   box.querySelectorAll("img").forEach((img) => {
@@ -2571,7 +2674,9 @@ function tickLoaders(now) {
   for (const name of activeLoaders) {
     const spec = queryLoaders[name];
     const node = document.getElementById(spec[3]);
-    if (node && node.dataset.line !== String(line)) {
+    if (node && node.dataset.lock) {
+      if (node.textContent !== node.dataset.lock) node.textContent = node.dataset.lock;
+    } else if (node && node.dataset.line !== String(line)) {
       node.dataset.line = String(line);
       node.textContent = thinkLines[line];
     }
@@ -2682,7 +2787,18 @@ async function loadDesk() {
   if (!response.ok) throw new Error("The lead list was refused.");
   const body = await response.json();
   leads = (Array.isArray(body.leads) ? body.leads : []).filter((lead) => !fixtureLead(lead));
-  pickLead(leads[0] || null);
+  const seeded = leads.filter((lead) => lead.interactionId === "zanari-analytics");
+  if (seeded.length) {
+    batches.unshift({
+      id: "batch-zanari",
+      title: "Zanari Analytics Ltd",
+      explanation: "",
+      leadIds: seeded.map((lead) => lead.id)
+    });
+    activeBatchId = "batch-zanari";
+    paintBatches();
+  }
+  pickLead((seeded[0]) || leads[0] || null);
   let requested = new URLSearchParams(location.search).get("view");
   const retired = { pipeline: "analytics", pains: "studio", priority: "studio" };
   if (retired[requested]) requested = retired[requested];

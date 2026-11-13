@@ -11,6 +11,7 @@ import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { agentRequest, postAgentWebhook } from './lib/agent-webhook.js';
+import { ZANARI_EXPLANATION, zanariLeads } from './lib/zanari-leads.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
 import { resolveMark } from './lib/mark.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
@@ -362,6 +363,11 @@ async function handleApi(request, response, url) {
       const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
       send(response, 502, { ok: false, error: message || 'The agent did not answer. Nothing was saved.' });
     }
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/zanari') {
+    const leads = rememberLeads(root, zanariLeads());
+    send(response, 200, { ok: true, explanation: ZANARI_EXPLANATION, leads });
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/agent') {
