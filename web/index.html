@@ -744,6 +744,7 @@
     position: absolute; inset: 11%; border-radius: 50%; overflow: hidden; background: #111;
   }
   .trend-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.05); }
+  .trend-photo img:not([src]) { visibility: hidden; }
   .trend-play {
     position: absolute; left: 8%; bottom: 4%; width: 54px; height: 54px; border: 0; border-radius: 50%;
     background: #fff; box-shadow: 0 10px 24px rgba(0,0,0,.2); display: grid; place-items: center;
@@ -1292,7 +1293,7 @@
           </div>
           <div class="trend-orbit">
             <div class="trend-ring" aria-hidden="true"></div>
-            <div class="trend-photo"><img id="leadPhoto" alt=""></div>
+            <div class="trend-photo"><img id="leadPhoto" alt="" referrerpolicy="no-referrer"></div>
             <button type="button" class="trend-play" id="leadPlay" aria-label="Show the contact"></button>
             <svg class="trend-scribble" viewBox="0 0 70 110" aria-hidden="true"><path d="M38 6c-18 16 22 24-6 46-20 16 18 28 2 52" fill="none" stroke="#141414" stroke-width="2.2" stroke-linecap="round"/></svg>
           </div>
@@ -2201,6 +2202,22 @@ document.getElementById("copySources").onclick = async () => {
   try { await navigator.clipboard.writeText(text); } catch (error) { /* the toast still confirms the copy action */ }
   toast("Source list copied.");
 };
+function platformIcon(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const social = ["linkedin.com", "facebook.com", "instagram.com", "x.com", "twitter.com", "youtube.com", "youtu.be", "reddit.com", "tiktok.com"];
+    if (host === "static.licdn.com") return true;
+    if (social.some((item) => host === item || host.endsWith("." + item))) return true;
+    if (parsed.pathname.includes("/s2/favicons")) {
+      const domain = (parsed.searchParams.get("domain") || "").replace(/^www\./, "");
+      return social.some((item) => domain === item || domain.endsWith("." + item));
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
 function renderLead() {
   const lead = selected;
   if (!lead) return;
@@ -2211,8 +2228,11 @@ function renderLead() {
     lead.negative ? "A negative match does not create a briefing or a task." : "The pitch stays a draft until you approve it."
   ].join(" ");
   const photo = document.getElementById("leadPhoto");
-  photo.alt = lead.company + " logo";
-  if (lead.photo) photo.src = lead.photo;
+  const direct = lead.photo && !platformIcon(lead.photo) ? lead.photo : "";
+  photo.alt = (lead.contact || lead.company) + " photo";
+  if (direct) photo.src = direct;
+  else photo.removeAttribute("src");
+  resolveLeadPhoto(lead);
   document.getElementById("contactCompany").textContent = lead.company;
   document.getElementById("contactHq").textContent = lead.hq;
   document.getElementById("contactDomain").textContent = lead.domain;
@@ -2223,6 +2243,23 @@ function renderLead() {
   if (href) source.href = lead.source;
   else source.removeAttribute("href");
   source.textContent = lead.source || "No public source.";
+}
+async function resolveLeadPhoto(lead) {
+  const params = new URLSearchParams({
+    company: lead.company || "",
+    contact: lead.contact || "",
+    website: lead.website || "",
+    source: lead.source || "",
+    photo: lead.photo || ""
+  });
+  try {
+    const response = await fetch("/api/mark?" + params.toString());
+    const body = await response.json();
+    if (selected !== lead || !body.photo) return;
+    document.getElementById("leadPhoto").src = body.photo;
+  } catch {
+    /* the photo already on the lead stays */
+  }
 }
 function scrollToContact() {
   document.getElementById("leadContact").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });

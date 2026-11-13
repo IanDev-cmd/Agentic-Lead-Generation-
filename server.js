@@ -11,6 +11,7 @@ import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
+import { resolveMark } from './lib/mark.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 import QRCode from 'qrcode';
 import { broadcastPush, sendPushNotification, validPushSubscription, vapidPublicKey } from './lib/push.js';
@@ -180,6 +181,17 @@ async function handleApi(request, response, url) {
   }
   if (request.method === 'GET' && url.pathname === '/api/leads') {
     send(response, 200, { ok: true, leads: allLeads(root) });
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/mark') {
+    const photo = await resolveMark({
+      company: url.searchParams.get('company') || '',
+      contact: url.searchParams.get('contact') || '',
+      website: url.searchParams.get('website') || '',
+      source: url.searchParams.get('source') || '',
+      photo: url.searchParams.get('photo') || '',
+    });
+    send(response, 200, { ok: true, photo });
     return;
   }
   const runMatch = url.pathname.match(/^\/api\/runs\/([^/]+)$/);
