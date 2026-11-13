@@ -278,8 +278,8 @@ async function handleApi(request, response, url) {
         facts,
       });
       send(response, 200, { ok: true, brief });
-    } catch {
-      send(response, 200, { ok: true, brief: deskText() });
+    } catch (error) {
+      send(response, 200, { ok: true, brief: deskText(error) });
     }
     return;
   }
@@ -358,12 +358,12 @@ async function handleApi(request, response, url) {
         people: found.people,
         leads,
       });
-    } catch {
+    } catch (error) {
       send(response, 200, {
         ok: true,
         channel,
         keywords: [],
-        explanation: deskText(),
+        explanation: deskText(error),
         companies: [],
         people: [],
         leads: [],
@@ -422,8 +422,8 @@ async function handleApi(request, response, url) {
         });
       }
       send(response, 200, { ok: true, explanation, leads });
-    } catch {
-      send(response, 200, { ok: true, explanation: deskText(), leads: [] });
+    } catch (error) {
+      send(response, 200, { ok: true, explanation: deskText(error), leads: [] });
     }
     return;
   }
