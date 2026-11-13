@@ -19,7 +19,7 @@ A batch is one research run. The desk never replaces the page with a spinner. Th
 
 Completed phases stay green. The current phase is the only one that pulses, and the pulse is removed when the system asks for reduced motion. A live region repeats the same sentence for assistive technology.
 
-Rate limit, used when grounding hits the cap for `gemini-3.8-flash` (1,500 requests per day on Gemini 3): the Searching pill turns red, the heading says the batch stopped, and Resume continues from the saved notes. It does not start a second paid interaction.
+Rate limit, used when `gemini-2.5-flash` grounding hits its 500-request day cap: the Searching pill turns red, the heading says the batch stopped, and Resume continues from the saved notes. It does not start a second paid interaction.
 
 Timeout, used when drafting exceeds the wait: the Drafting pill turns amber. Resume continues from drafting. The partial notes stay on the desk.
 

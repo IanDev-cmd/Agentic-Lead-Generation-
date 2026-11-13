@@ -272,7 +272,7 @@ async function handleApi(request, response, url) {
       const facts = territoryFacts(root, start);
       const brief = await narrateTerritory({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-3.8-flash').trim() || 'gemini-3.8-flash',
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         facts,
       });
       send(response, 200, { ok: true, brief });
@@ -342,7 +342,7 @@ async function handleApi(request, response, url) {
     try {
       const found = await runAgentSearch({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-3.8-flash').trim() || 'gemini-3.8-flash',
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         query,
         channel,
         profile: businessEnv(body),
@@ -396,7 +396,7 @@ async function handleApi(request, response, url) {
       const built = partsForAsk(uploads, texts);
       const answer = await askSources({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-3.8-flash').trim() || 'gemini-3.8-flash',
+        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         question,
         profile: businessEnv(body),
         parts: built.parts,

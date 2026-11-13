@@ -26,7 +26,7 @@ services:
       - key: MAX_LEADS
         value: "8"
       - key: FREE_MODEL
-        value: gemini-3.8-flash
+        value: gemini-2.5-flash
       - key: FREE_GROUNDING_CALLS_PER_RUN
         value: "5"
       - key: PIPELINE_ENABLED
