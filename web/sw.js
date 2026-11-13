@@ -1,4 +1,4 @@
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL = `lead-shell-${VERSION}`;
 const RUNTIME = `lead-runtime-${VERSION}`;
 const PRECACHE = [
@@ -8,6 +8,7 @@ const PRECACHE = [
   '/pwa.js',
   '/bg.jpg',
   '/maps.js',
+  '/orbs.js',
   '/maps/buyers.geojson',
   '/icons/alpha.svg',
   '/icons/icon-192.png',

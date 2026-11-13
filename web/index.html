@@ -412,6 +412,25 @@
   }
   .panel.doc { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
   .doc-main { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 28px 28px 8px; }
+  .query-loader {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    width: min(280px, 100%); margin: 8px auto 16px;
+  }
+  .query-loader[hidden] { display: none !important; }
+  #researchLoader {
+    position: absolute; left: 50%; top: 46%; z-index: 2; margin: 0;
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+  .query-orbs {
+    position: relative; width: 120px; height: 120px; border-radius: 50%;
+    background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .query-orbs canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .query-loader p {
+    margin: 0; min-height: 1.4em; text-align: center; color: #3c4043;
+    font-size: 15px; font-weight: 550; letter-spacing: -0.01em;
+  }
+  .file-stage .query-loader p { color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
   .think-stage {
     position: absolute; left: 50%; top: 58%; z-index: 2; width: min(440px, 78%);
     aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none;
@@ -1094,6 +1113,13 @@
             </div>
           </div>
           <div class="doc-text" id="docText"></div>
+          <div class="query-loader" id="researchLoader" hidden>
+            <div class="query-orbs">
+              <canvas id="researchFrom" aria-hidden="true"></canvas>
+              <canvas id="researchTo" aria-hidden="true"></canvas>
+            </div>
+            <p id="researchThink" aria-live="polite"></p>
+          </div>
         </div>
         <div class="studio-dock">
           <form class="studio-ask gem-glow" id="askForm">
@@ -1136,6 +1162,13 @@
         <button type="submit">Search</button>
       </form>
       <p class="file-sub" id="linkedinStatus"></p>
+      <div class="query-loader" id="linkedinLoader" hidden>
+        <div class="query-orbs">
+          <canvas id="linkedinFrom" aria-hidden="true"></canvas>
+          <canvas id="linkedinTo" aria-hidden="true"></canvas>
+        </div>
+        <p id="linkedinThink" aria-live="polite"></p>
+      </div>
       <div class="agent-keys" id="linkedinKeys"></div>
       <div id="linkedinResults"></div>
     </section>
@@ -1148,6 +1181,13 @@
         <button type="submit">Search</button>
       </form>
       <p class="file-sub" id="socialStatus"></p>
+      <div class="query-loader" id="socialLoader" hidden>
+        <div class="query-orbs">
+          <canvas id="socialFrom" aria-hidden="true"></canvas>
+          <canvas id="socialTo" aria-hidden="true"></canvas>
+        </div>
+        <p id="socialThink" aria-live="polite"></p>
+      </div>
       <div class="agent-keys" id="socialKeys"></div>
       <div id="socialResults"></div>
     </section>
@@ -1303,6 +1343,7 @@ import * as Geo from "/geo.js?v=1";
 window.Geo = Geo;
 </script>
 <script src="/maps.js?v=1"></script>
+<script src="/orbs.js?v=2"></script>
 <script src="/radar.js?v=3"></script>
 <script>
 const brandPath = {
@@ -1729,7 +1770,6 @@ function paintPhases(active, failed) {
 function startRun(extra) {
   clearTimeout(timer);
   phase = "plan";
-  startResearchGlow();
   if (inSheet()) openSheet("run");
   else show("studio");
   const focus = extra && extra.company ? extra.company : "";
@@ -1753,8 +1793,7 @@ function startRun(extra) {
     .catch((error) => {
       step("plan", "The desk could not reach the API", error.message);
       toast("The desk could not reach the API. Nothing was written to Sheets.");
-    })
-    .finally(stopResearchGlow);
+    });
 }
 function syncResearchDrawer() {
   if (!inSheet()) return;
@@ -1942,6 +1981,7 @@ function bindAgent(channel) {
     status.textContent = "Running several keyword searches. Nothing is posted.";
     document.getElementById(channel + "Keys").innerHTML = "";
     document.getElementById(channel + "Results").innerHTML = "";
+    startQueryLoader(channel);
     try {
       const response = await postDesk("/api/agents/search", { channel, query, ...profileBody() });
       const body = await response.json();
@@ -1952,6 +1992,8 @@ function bindAgent(channel) {
       paintAgent(channel, body);
     } catch {
       status.textContent = "The desk could not reach the agent. Nothing was saved.";
+    } finally {
+      stopQueryLoader(channel);
     }
   };
 }
@@ -2345,8 +2387,103 @@ function renderMap() {
     },
   });
 }
-function startResearchGlow() {}
-function stopResearchGlow() {}
+const thinkStates = ["solving", "composing"];
+const thinkLines = [
+  "Analyzing the ICP criteria",
+  "Checking hard disqualifiers first",
+  "Scanning recent press releases",
+  "Cross-referencing the company's 'About' page",
+  "Argument for inclusion",
+  "Mapping observed signal to product value",
+  "Discarding generic company milestones"
+];
+const queryLoaders = {
+  research: ["researchLoader", "researchFrom", "researchTo", "researchThink"],
+  linkedin: ["linkedinLoader", "linkedinFrom", "linkedinTo", "linkedinThink"],
+  social: ["socialLoader", "socialFrom", "socialTo", "socialThink"]
+};
+const activeLoaders = new Set();
+let queryFrame = 0;
+let queryStarted = 0;
+const thinkHold = 2200;
+const thinkFade = 900;
+function paintThinkCanvas(canvas, preset, time, alpha) {
+  if (!canvas || !window.Orbs) return;
+  const logical = 64;
+  const css = canvas.clientWidth || 120;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const px = Math.max(2, Math.round(css * dpr));
+  if (canvas.width !== px || canvas.height !== px) {
+    canvas.width = px;
+    canvas.height = px;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(px / logical, 0, 0, px / logical, 0, 0);
+  ctx.clearRect(0, 0, logical, logical);
+  ctx.globalAlpha = alpha;
+  window.Orbs.MODE_DRAWS[preset.mode](ctx, logical, time * preset.speed, false, preset.opts);
+  ctx.globalAlpha = 1;
+}
+function tickLoaders(now) {
+  if (!activeLoaders.size || !window.Orbs) {
+    queryFrame = 0;
+    return;
+  }
+  const elapsed = Math.max(0, now - queryStarted);
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const span = reduce ? 4000 : thinkHold + thinkFade;
+  const slot = elapsed % (span * thinkStates.length);
+  const index = Math.floor(slot / span);
+  const local = slot - index * span;
+  const blend = reduce || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
+  const from = window.Orbs.resolvePreset(thinkStates[index], 64);
+  const to = window.Orbs.resolvePreset(thinkStates[(index + 1) % thinkStates.length], 64);
+  const t = reduce ? 1.4 : elapsed / 1000;
+  const line = Math.floor(elapsed / 2400) % thinkLines.length;
+  for (const name of activeLoaders) {
+    const spec = queryLoaders[name];
+    const node = document.getElementById(spec[3]);
+    if (node && node.dataset.line !== String(line)) {
+      node.dataset.line = String(line);
+      node.textContent = thinkLines[line];
+    }
+    paintThinkCanvas(document.getElementById(spec[1]), from, t, 1 - blend);
+    paintThinkCanvas(document.getElementById(spec[2]), to, t, blend > 0 ? blend : 0);
+  }
+  queryFrame = requestAnimationFrame(tickLoaders);
+}
+function startQueryLoader(name) {
+  const spec = queryLoaders[name];
+  const root = spec && document.getElementById(spec[0]);
+  if (!root || !window.Orbs) return;
+  root.hidden = false;
+  const node = document.getElementById(spec[3]);
+  if (node) {
+    node.dataset.line = "0";
+    node.textContent = thinkLines[0];
+  }
+  activeLoaders.add(name);
+  if (!queryFrame) {
+    queryStarted = performance.now();
+    queryFrame = requestAnimationFrame(tickLoaders);
+  }
+}
+function stopQueryLoader(name) {
+  activeLoaders.delete(name);
+  const spec = queryLoaders[name];
+  const root = spec && document.getElementById(spec[0]);
+  if (root) root.hidden = true;
+  if (!activeLoaders.size) {
+    cancelAnimationFrame(queryFrame);
+    queryFrame = 0;
+  }
+}
+function startResearchGlow() {
+  startQueryLoader("research");
+}
+function stopResearchGlow() {
+  stopQueryLoader("research");
+}
 const googleApps = { map: "maps", report: "briefings", slides: "slides", pipeline: "sheet", run: "sheet", workspace: "sheet", tasks: "tasks", draft: "drafts" };
 async function openGoogleApp(sheet) {
   const key = googleApps[sheet] || "sheet";
