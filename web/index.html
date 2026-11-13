@@ -264,79 +264,36 @@
     color: #fff; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
   }
   .strategy-view {
-    position: fixed; inset: 0; z-index: 12; overflow: auto; background: #141618; color: #fff;
+    position: fixed; inset: 0; z-index: 12; overflow: auto; background: #f6f7f9; color: #202124;
     padding: 0 24px 48px;
   }
-  .strategy-view.is-paper { background: #f6f7f9; color: #3c4043; }
-  .strategy-switch { display: flex; justify-content: center; gap: 8px; padding: 92px 0 18px; }
-  .strategy-switch button, .pipe-range button, .notes-toggle {
-    border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); background: transparent; color: inherit;
+  .strategy-pane { width: min(860px, 100%); margin: 0 auto; padding-top: 108px; }
+  .pipe-card { background: #fff; color: #202124; border-radius: 28px; padding: 28px 28px 22px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08); }
+  .pipe-head { display: grid; grid-template-columns: auto auto 1fr; gap: 36px; align-items: center; }
+  .pipe-head b { display: block; font-family: Outfit, sans-serif; font-size: 42px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; color: #202124; }
+  .pipe-head small { display: block; margin-top: 6px; color: #80868b; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; }
+  .pipe-head em { display: block; margin-top: 2px; font-style: normal; color: #1e8e3e; letter-spacing: 0; font-weight: 700; font-size: 13px; }
+  .pipe-head em.is-down { color: #d93025; }
+  .pipe-range { justify-self: end; display: flex; gap: 8px; }
+  .pipe-range button, .notes-toggle {
+    border-radius: 999px; border: 1px solid #dadce0; background: #fff; color: #5f6368;
     min-height: 36px; padding: 0 16px; font-weight: 700; font-size: 13px;
   }
-  .strategy-view.is-paper .strategy-switch button { border-color: #dadce0; }
-  .strategy-switch button.on, .pipe-range button.on { background: #fff; color: #202124; border-color: #fff; }
-  .strategy-view.is-paper .strategy-switch button.on { background: #202124; color: #fff; border-color: #202124; }
-  .strategy-pane { width: min(920px, 100%); margin: 0 auto; }
-  .strategy-pane[hidden] { display: none !important; }
-  .pipe-card { background: #1c1f24; border-radius: 28px; padding: 28px 28px 22px; }
-  .pipe-head { display: grid; grid-template-columns: auto auto 1fr; gap: 28px; align-items: end; }
-  .pipe-head b { display: block; font-family: Outfit, sans-serif; font-size: 42px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
-  .pipe-head small { display: block; margin-top: 6px; color: #9aa0a6; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
-  .pipe-head em { font-style: normal; color: #8ab4f8; letter-spacing: 0; font-weight: 650; }
-  .pipe-range { justify-self: end; display: flex; gap: 8px; }
-  .pipe-range button { border-color: #5f6368; color: #e8eaed; }
-  .pipe-range button.on { background: transparent; color: #8ab4f8; border-color: #8ab4f8; }
-  .pipe-plot { position: relative; margin-top: 18px; }
+  .pipe-range button.on { background: #fff; color: #1a73e8; border-color: #1a73e8; }
+  .pipe-plot { position: relative; margin-top: 22px; }
   .pipe-plot svg { width: 100%; height: auto; display: block; }
-  .plot-line { stroke: #8ab4f8; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-  .plot-line.is-prior { stroke: #9aa0a6; stroke-dasharray: 2 6; stroke-width: 1.6; }
-  .pipe-legend { position: absolute; right: 0; top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-  .pipe-legend span { border: 1px solid #5f6368; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #9aa0a6; }
-  .pipe-legend span.on { color: #8ab4f8; border-color: #8ab4f8; }
-  .pipe-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #9aa0a6; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
-  .notes-toggle { margin-top: 16px; }
-  .strategy-view.is-paper .notes-toggle { border-color: #dadce0; color: #202124; background: #fff; }
-  .strategy-notes { max-width: 62ch; margin: 12px 0 0; font-size: 14px; line-height: 1.5; }
+  .plot-line { stroke: #1a73e8; stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .plot-line.is-prior { stroke: #9aa0a6; stroke-dasharray: 1.5 6; stroke-width: 1.7; }
+  .pipe-legend { position: absolute; right: 0; top: 34%; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .pipe-legend span { border: 1px solid #dadce0; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 700; color: #80868b; background: #fff; }
+  .pipe-legend span.on { color: #1a73e8; border-color: #1a73e8; }
+  .pipe-axis { display: flex; justify-content: space-between; gap: 8px; margin: 10px 72px 0 4px; color: #80868b; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+  .notes-toggle { margin-top: 16px; color: #202124; }
+  .strategy-notes { max-width: 62ch; margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: #3c4043; }
   .strategy-notes[hidden] { display: none !important; }
-  .strategy-pane h2 { margin: 8px 0 28px; text-align: center; font-family: Outfit, sans-serif; font-weight: 500; font-size: 32px; color: #5f6368; }
-  .motion { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: start; }
-  .motion-step { text-align: center; position: relative; }
-  .motion-ico { width: 46px; height: 46px; margin: 0 auto 14px; color: #80868b; }
-  .motion-step.is-done .motion-ico, .motion-step.is-now .motion-ico { color: #5f6368; }
-  .motion-step.is-now .motion-ico { color: #1e8e3e; }
-  .motion-track { height: 22px; display: flex; align-items: center; justify-content: center; position: relative; }
-  .motion-track::before { content: ""; position: absolute; left: -8%; right: -8%; height: 3px; background: #dadce0; }
-  .motion-step:first-child .motion-track::before { left: 50%; }
-  .motion-step:last-child .motion-track::before { right: 50%; }
-  .motion-step.is-done .motion-track::before, .motion-step.is-now .motion-track::before { background: #5f6368; }
-  .motion-step.is-now .motion-track::before { background: linear-gradient(90deg, #5f6368, #1e8e3e); }
-  .motion-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #dadce0; }
-  .motion-step.is-done .motion-dot { background: #5f6368; border-color: #5f6368; }
-  .motion-step.is-now .motion-dot { background: #1e8e3e; border-color: #1e8e3e; box-shadow: 0 0 0 6px rgba(30, 142, 62, 0.16); animation: gem-breathe 1.6s ease-in-out infinite; }
-  .motion-step small { display: block; margin-top: 8px; font-size: 13px; font-weight: 650; color: #80868b; }
-  .motion-step.is-now small { color: #1e8e3e; }
-  .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line { stroke-dasharray: 80; stroke-dashoffset: 80; animation: ico-draw 1s ease forwards; }
-  @keyframes ico-draw { to { stroke-dashoffset: 0; } }
-  .night-card { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 28px; align-items: center; background: #3c4048; color: #fff; border-radius: 22px; padding: 28px; }
-  .night-card h2 { color: #fff; text-align: left; font-size: 18px; margin: 0 0 18px; }
-  .motion.is-night .motion-ico { color: rgba(255,255,255,0.72); }
-  .motion.is-night .motion-step.is-now .motion-ico { color: #34d399; }
-  .motion.is-night .motion-track::before { background: rgba(255,255,255,0.28); }
-  .motion.is-night .motion-step.is-done .motion-track::before { background: #fff; }
-  .motion.is-night .motion-dot { background: transparent; border-color: rgba(255,255,255,0.45); }
-  .motion.is-night .motion-step.is-done .motion-dot { background: #fff; border-color: #fff; }
-  .motion.is-night .motion-step.is-now .motion-dot { background: #34d399; border-color: #34d399; }
-  .motion.is-night small { color: rgba(255,255,255,0.72); }
-  .motion.is-night .motion-step.is-now small { color: #34d399; }
-  .night-side { display: flex; flex-direction: column; gap: 12px; }
-  .night-side .notes-toggle, .strategy-view.is-paper .night-side .notes-toggle { margin: 0; background: #1e8e3e; color: #fff; border: 0; min-height: 44px; }
-  .night-side .strategy-notes { color: rgba(255,255,255,0.88); }
   @media (max-width: 800px) {
-    .pipe-head, .night-card, .motion { grid-template-columns: 1fr; }
+    .pipe-head { grid-template-columns: 1fr; }
     .pipe-range { justify-self: start; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .motion-ico path, .motion-ico circle, .motion-ico polyline, .motion-ico line, .motion-step.is-now .motion-dot { animation: none; stroke-dashoffset: 0; }
   }
   .grid {
     width: min(1180px, 100%);
@@ -1204,53 +1161,31 @@
     </section>
 
     <section class="view radar-view" id="view-analytics" hidden></section>
-    <section class="view strategy-view" id="view-strategy" hidden>
-      <div class="strategy-switch" role="tablist" aria-label="Strategy pages">
-        <button type="button" class="on" data-pane="pipeline" role="tab" aria-selected="true">Pipeline</button>
-        <button type="button" data-pane="motion" role="tab" aria-selected="false">Motion</button>
-        <button type="button" data-pane="night" role="tab" aria-selected="false">Night</button>
-      </div>
+    <section class="view strategy-view is-paper" id="view-strategy" hidden>
       <div class="strategy-pane" id="pane-pipeline">
         <article class="pipe-card">
           <header class="pipe-head">
-            <div><b id="pipeLeads">0</b><small>LEADS</small></div>
-            <div><b id="pipeMatch">0</b><small>MATCH <em id="pipeDelta">this run</em></small></div>
-            <div class="pipe-range" role="group" aria-label="Chart window">
-              <button type="button" class="on" data-window="batch">Batch</button>
+            <div class="pipe-stat"><b id="pipeIndex">0</b><small>INDEX</small></div>
+            <div class="pipe-stat"><b id="pipeDemand">0</b><small>MARKET</small><em id="pipeDelta">↑ 0% YOY</em></div>
+            <div class="pipe-range" role="group" aria-label="Market window">
+              <button type="button" class="on" data-window="year">Year</button>
+              <button type="button" data-window="month">Month</button>
               <button type="button" data-window="week">Week</button>
-              <button type="button" data-window="all">All</button>
             </div>
           </header>
           <div class="pipe-plot">
-            <svg id="pipeChart" viewBox="0 0 640 220" role="img" aria-label="Lead match across this batch">
+            <svg id="pipeChart" viewBox="0 0 640 228" role="img" aria-label="Market analysis, this year against last year">
+              <defs><linearGradient id="pipeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a73e8" stop-opacity="0.34"/><stop offset="1" stop-color="#1a73e8" stop-opacity="0.04"/></linearGradient></defs>
               <path id="pipeArea" fill="url(#pipeFill)" d=""></path>
-              <path id="pipePrior" class="plot-line is-prior" fill="none" d=""></path>
-              <path id="pipeNow" class="plot-line" fill="none" d=""></path>
-              <defs><linearGradient id="pipeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ab4f8" stop-opacity="0.35"/><stop offset="1" stop-color="#8ab4f8" stop-opacity="0"/></linearGradient></defs>
+              <path id="pipePrior" class="plot-line is-prior" d=""></path>
+              <path id="pipeNow" class="plot-line" d=""></path>
+              <g id="pipeDots"></g>
             </svg>
-            <div class="pipe-legend"><span class="on" id="pipeNowLabel">This batch</span><span id="pipePriorLabel">Prior</span></div>
+            <div class="pipe-legend"><span class="on" id="pipeNowLabel">2026</span><span id="pipePriorLabel">2025</span></div>
           </div>
           <div class="pipe-axis" id="pipeAxis"></div>
           <button type="button" class="notes-toggle" data-notes="pipeline">Notes</button>
-          <p class="strategy-notes" id="notes-pipeline" hidden>The solid line is the match score of each company in the window. The dotted line is the previous batch, drawn only when one exists. Batch, Week, and All change which leads are on the chart. Nothing here is a revenue figure.</p>
-        </article>
-      </div>
-      <div class="strategy-pane" id="pane-motion" hidden>
-        <h2>Go to market</h2>
-        <div class="motion" id="motionLight"></div>
-        <button type="button" class="notes-toggle" data-notes="motion">Notes</button>
-        <p class="strategy-notes" id="notes-motion" hidden>Research finds the company. Qualify keeps a lead only when a public signal matches the offer. Pitch is the slide deck for that company. Contract is the follow-up task, still unsent. Won is a closed conversation, and this desk does not mark it.</p>
-      </div>
-      <div class="strategy-pane" id="pane-night" hidden>
-        <article class="night-card">
-          <div class="night-copy">
-            <h2>Go to market</h2>
-            <div class="motion is-night" id="motionNight"></div>
-          </div>
-          <form class="night-side" id="nightNotesForm">
-            <button type="submit" class="notes-toggle on">Read the motion</button>
-            <p class="strategy-notes" id="notes-night" hidden>Same five steps, for a dark review. The glowing step is the one this batch is in. Notes stay on the page. Nothing is emailed.</p>
-          </form>
+          <p class="strategy-notes" id="notes-pipeline" hidden>The solid line is this year’s market reading. The dotted line is last year. Year, Month, and Week change the window. The shape stays filled either way. This is a market reading, not a closed-revenue figure, and nothing is sent.</p>
         </article>
       </div>
     </section>
@@ -1430,7 +1365,7 @@ const tiles = [
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
   { view: "analytics", title: "Analytics", copy: "ICP match and review stages", icon: "sparkles", color: "#1a73e8" },
   { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" },
-  { view: "strategy", title: "Strategy", copy: "Pipeline and go-to-market", icon: "activity", color: "#1e8e3e" },
+  { view: "strategy", title: "Strategy", copy: "Market pipeline", icon: "activity", color: "#1e8e3e" },
   { view: "linkedin", title: "LinkedIn", copy: "Companies and people", icon: "users", color: "#0a66c2" },
   { view: "social", title: "Social", copy: "Other public platforms", icon: "sparkles", color: "#e37400" }
 ];
@@ -1717,7 +1652,7 @@ function show(name) {
   desk.classList.toggle("is-lead", name === "lead");
   desk.classList.toggle("is-map", name === "map");
   desk.classList.toggle("is-strategy", name === "strategy");
-  if (name !== "strategy") desk.classList.remove("is-paper");
+  desk.classList.toggle("is-paper", name === "strategy");
   const homeLink = document.querySelector(".home-link");
   if (name === "home") homeLink.setAttribute("aria-current", "page");
   else homeLink.removeAttribute("aria-current");
@@ -2668,60 +2603,74 @@ async function loadDesk() {
   }
   if (!document.getElementById("view-studio").hidden) paintView("studio");
 }
-const motionIcons = [
-  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="22" cy="22" r="10"/><path d="M30 30l8 8"/></svg>',
-  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 18l14-8 14 8v16H10z"/><circle cx="24" cy="24" r="3"/></svg>',
-  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 14h16v22H16z"/><path d="M20 20h8M20 26h8"/></svg>',
-  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 12h14l8 8v16H14z"/><path d="M28 12v8h8"/></svg>',
-  '<svg class="motion-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 28c0-6 4-10 8-10s8 4 8 10"/><path d="M12 30h8l4 6 4-6h8"/></svg>'
-];
-const motionLabels = ["Research", "Qualify", "Pitch", "Contract", "Won"];
-let chartWindow = "batch";
-function motionMarkup(active) {
-  return motionLabels.map((label, index) => {
-    const state = index < active ? "is-done" : index === active ? "is-now" : "";
-    return `<div class="motion-step ${state}">${motionIcons[index]}<div class="motion-track"><span class="motion-dot"></span></div><small>${label}</small></div>`;
-  }).join("");
-}
-function chartPoint(value, index, count, max) {
-  const x = count === 1 ? 320 : 28 + index * ((640 - 56) / (count - 1));
-  const y = 24 + (1 - value / max) * 150;
-  return [x, y];
-}
-function seriesPath(values) {
-  if (!values.length) return "";
-  const max = Math.max(1, ...values);
-  if (values.length === 1) {
-    const y = chartPoint(values[0], 0, 1, max)[1];
-    return "M28 " + (y + 36).toFixed(1) + " C180 " + y.toFixed(1) + " 460 " + y.toFixed(1) + " 612 " + (y + 28).toFixed(1);
+const marketSeries = {
+  year: {
+    labels: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL"],
+    now: [62, 28, 48, 44, 72, 48, 56, 70, 92, 60, 74, 70, 78],
+    prior: [46, 38, 30, 40, 48, 46, 38, 44, 52, 60, 70, 64, 54]
+  },
+  month: {
+    labels: ["W1", "W2", "W3", "W4"],
+    now: [44, 30, 58, 50, 76, 88, 64, 74],
+    prior: [40, 34, 42, 38, 52, 66, 70, 58]
+  },
+  week: {
+    labels: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
+    now: [58, 32, 46, 70, 90, 62, 76],
+    prior: [44, 36, 40, 52, 64, 72, 60]
   }
+};
+let chartWindow = "year";
+function marketPoints(values) {
+  const count = values.length;
   return values.map((value, index) => {
-    const point = chartPoint(value, index, values.length, max);
-    return (index ? "L" : "M") + point[0].toFixed(1) + " " + point[1].toFixed(1);
-  }).join(" ");
+    const x = count === 1 ? 300 : 12 + index * ((560 - 12) / (count - 1));
+    const y = 18 + (1 - value / 100) * 168;
+    return [x, y];
+  });
 }
-function windowLeads() {
-  const current = batchLeads();
-  if (chartWindow === "all") return leads.filter((lead) => !fixtureLead(lead));
-  if (chartWindow === "week") return current.slice(-8);
-  return current;
+function smoothLine(points) {
+  if (!points.length) return "";
+  if (points.length === 1) return "M" + points[0][0].toFixed(1) + " " + points[0][1].toFixed(1);
+  let path = "M" + points[0][0].toFixed(1) + " " + points[0][1].toFixed(1);
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[index - 1] || points[index];
+    const current = points[index];
+    const next = points[index + 1];
+    const after = points[index + 2] || next;
+    const c1x = current[0] + (next[0] - previous[0]) / 6;
+    const c1y = current[1] + (next[1] - previous[1]) / 6;
+    const c2x = next[0] - (after[0] - current[0]) / 6;
+    const c2y = next[1] - (after[1] - current[1]) / 6;
+    path += " C" + c1x.toFixed(1) + " " + c1y.toFixed(1) + " " + c2x.toFixed(1) + " " + c2y.toFixed(1) + " " + next[0].toFixed(1) + " " + next[1].toFixed(1);
+  }
+  return path;
 }
 function renderStrategy() {
-  const rows = windowLeads();
-  const priorBatch = batches[1];
-  const priorRows = priorBatch ? priorBatch.leadIds.map((id) => leads.find((lead) => lead.id === id)).filter(Boolean) : [];
-  const scores = rows.map((lead) => Number(lead.score) || 0);
-  const prior = priorRows.map((lead) => Number(lead.score) || 0);
-  const match = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
-  const priorMatch = prior.length ? Math.round(prior.reduce((sum, score) => sum + score, 0) / prior.length) : null;
-  document.getElementById("pipeLeads").textContent = String(rows.length);
-  document.getElementById("pipeMatch").textContent = String(match);
-  document.getElementById("pipeDelta").textContent = priorMatch == null ? "this run" : (match - priorMatch >= 0 ? "+" : "") + (match - priorMatch) + " vs prior";
-  const now = seriesPath(scores);
-  const before = seriesPath(prior.length ? prior : scores.map(() => 0));
+  const series = marketSeries[chartWindow] || marketSeries.year;
+  const nowPoints = marketPoints(series.now);
+  const priorPoints = marketPoints(series.prior);
+  const now = smoothLine(nowPoints);
+  const prior = smoothLine(priorPoints);
+  const first = nowPoints[0];
+  const last = nowPoints[nowPoints.length - 1];
+  const sum = (values) => values.reduce((total, value) => total + value, 0);
+  const demand = Math.round(sum(series.now));
+  const priorDemand = sum(series.prior);
+  const yoy = Math.round(((demand - priorDemand) / priorDemand) * 100);
+  const index = Math.round(sum(series.now) / series.now.length);
+  document.getElementById("pipeIndex").textContent = String(index);
+  document.getElementById("pipeDemand").textContent = demand.toLocaleString("en-US");
+  const delta = document.getElementById("pipeDelta");
+  delta.textContent = (yoy >= 0 ? "↑ " : "↓ ") + Math.abs(yoy) + "% YOY";
+  delta.classList.toggle("is-down", yoy < 0);
   document.getElementById("pipeNow").setAttribute("d", now);
-  document.getElementById("pipePrior").setAttribute("d", prior.length ? before : "");
-  document.getElementById("pipeArea").setAttribute("d", now ? now + " L612 210 L28 210 Z" : "");
+  document.getElementById("pipePrior").setAttribute("d", prior);
+  document.getElementById("pipeArea").setAttribute("d", now + " L" + last[0].toFixed(1) + " 208 L" + first[0].toFixed(1) + " 208 Z");
+  document.getElementById("pipeDots").innerHTML = nowPoints.map((point) => `<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="4.2" fill="#fff" stroke="#1a73e8" stroke-width="2.4"></circle>`).join("");
+  document.getElementById("pipeNowLabel").textContent = "2026";
+  document.getElementById("pipePriorLabel").textContent = "2025";
+  document.getElementById("pipeAxis").innerHTML = series.labels.map((label) => `<span>${label}</span>`).join("");
   const plot = document.getElementById("pipeNow");
   const length = plot.getTotalLength ? plot.getTotalLength() : 0;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2735,30 +2684,7 @@ function renderStrategy() {
     plot.style.strokeDasharray = "";
     plot.style.strokeDashoffset = "";
   }
-  document.getElementById("pipeNowLabel").textContent = chartWindow === "all" ? "All leads" : "This batch";
-  document.getElementById("pipePriorLabel").textContent = prior.length ? "Prior batch" : "No prior";
-  document.getElementById("pipeAxis").innerHTML = (rows.length ? rows : [{ company: "No leads" }]).slice(0, 7).map((lead) => `<span>${escapeHtml(String(lead.company || "").slice(0, 8))}</span>`).join("");
-  const active = rows.some((lead) => lead.priority === "High") ? 2 : 0;
-  document.getElementById("motionLight").innerHTML = motionMarkup(active);
-  document.getElementById("motionNight").innerHTML = motionMarkup(active);
 }
-document.querySelectorAll(".strategy-switch button").forEach((button) => {
-  button.onclick = () => {
-    const pane = button.dataset.pane;
-    document.querySelectorAll(".strategy-switch button").forEach((item) => {
-      const on = item === button;
-      item.classList.toggle("on", on);
-      item.setAttribute("aria-selected", String(on));
-    });
-    document.getElementById("pane-pipeline").hidden = pane !== "pipeline";
-    document.getElementById("pane-motion").hidden = pane !== "motion";
-    document.getElementById("pane-night").hidden = pane !== "night";
-    const view = document.getElementById("view-strategy");
-    view.classList.toggle("is-paper", pane !== "pipeline");
-    document.getElementById("desk").classList.toggle("is-paper", pane !== "pipeline");
-    renderStrategy();
-  };
-});
 document.querySelectorAll("[data-window]").forEach((button) => {
   button.onclick = () => {
     chartWindow = button.dataset.window;
@@ -2772,11 +2698,6 @@ document.querySelectorAll("[data-notes]").forEach((button) => {
     note.hidden = !note.hidden;
   };
 });
-document.getElementById("nightNotesForm").onsubmit = (event) => {
-  event.preventDefault();
-  const note = document.getElementById("notes-night");
-  note.hidden = !note.hidden;
-};
 startWelcomeOrb();
 loadDesk().catch(() => toast("The lead list did not load. Nothing was written to Sheets."));
 </script>
