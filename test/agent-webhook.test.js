@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AGENT_WEBHOOK_URL, agentRequest, leadsFromAgent, postAgentWebhook } from '../lib/agent-webhook.js';
+import { createAgentStreamParser } from '../lib/agent-stream.js';
 
 test('agent requests keep the question, profile, and readable files', () => {
   const payload = agentRequest({
@@ -44,6 +45,34 @@ test('studio reads the desk lead envelope', () => {
   assert.equal(found.leads[0].company, 'Acme Learning');
   assert.equal(found.leads[0].priority, 'High');
   assert.equal(found.leads[0].website, 'https://acme.example');
+});
+
+test('item chunks join into summary, lead, and done lines', () => {
+  const parser = createAgentStreamParser();
+  const inner = [
+    '{"type":"summary","explanation":"Two buyers."}',
+    '{"type":"lead","company":"Acme","domain":"acme.com","website":"https://acme.com","hq":"","contact":"Ada","title":"Ops","email":"ada@acme.com","pain":"Hiring","hook":"Hiring page","priority":"High","source":"https://acme.com/about","photo":""}',
+    '{"type":"done","count":1}',
+  ].join('\n') + '\n';
+  const events = [];
+  let pending = '';
+  for (let i = 0; i < inner.length; i += 5) {
+    pending += JSON.stringify({ type: 'item', content: inner.slice(i, i + 5) }) + '\n';
+    events.push(...parser.push(pending.slice(0, 9)));
+    pending = pending.slice(9);
+  }
+  events.push(...parser.push(pending));
+  events.push(...parser.finish());
+  const summary = events.find((event) => event.type === 'summary');
+  const leads = events.filter((event) => event.type === 'lead');
+  const done = events.find((event) => event.type === 'done');
+  assert.equal(summary.explanation, 'Two buyers.');
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].lead.company, 'Acme');
+  assert.equal(Object.hasOwn(leads[0].lead, 'lat'), false);
+  assert.equal(Object.hasOwn(leads[0].lead, 'lng'), false);
+  assert.equal(leads[0].lead.priority, 'High');
+  assert.equal(done.count, 1);
 });
 
 test('webhook leads accept n8n items and field aliases', () => {

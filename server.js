@@ -10,7 +10,8 @@ import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
-import { agentRequest, postAgentWebhook } from './lib/agent-webhook.js';
+import { agentRequest, AGENT_WEBHOOK_URL } from './lib/agent-webhook.js';
+import { createAgentStreamParser } from './lib/agent-stream.js';
 import { ZANARI_EXPLANATION, zanariLeads } from './lib/zanari-leads.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
 import { resolveMark } from './lib/mark.js';
@@ -388,13 +389,55 @@ async function handleApi(request, response, url) {
       return;
     }
     try {
-      const result = await postAgentWebhook(payload);
-      if (!result.ok) {
-        const status = result.status >= 400 && result.status < 600 ? result.status : 502;
-        send(response, status, { ok: false, error: result.error || 'The lead webhook did not answer. Nothing was added.' });
+      const upstream = await fetch(AGENT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson, application/json;q=0.9' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(900000),
+      });
+      if (!upstream.ok || !upstream.body) {
+        const raw = await upstream.text().catch(() => '');
+        let error = '';
+        try {
+          const parsed = raw ? JSON.parse(raw) : null;
+          error = parsed && typeof parsed === 'object' ? (parsed.error || parsed.message || '') : '';
+        } catch {
+          error = '';
+        }
+        const status = upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502;
+        send(response, status, { ok: false, error: String(error || '').slice(0, 300) || `The lead webhook returned ${upstream.status}.` });
         return;
       }
-      const leads = rememberLeads(root, result.leads);
+      response.writeHead(200, {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Accel-Buffering': 'no',
+        'Set-Cookie': deskCookie(),
+      });
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      const parser = createAgentStreamParser();
+      const collected = [];
+      const take = (events) => {
+        for (const event of events) {
+          if (event.type === 'lead') collected.push(event.lead);
+        }
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (response.destroyed || response.writableEnded) {
+          reader.cancel().catch(() => {});
+          break;
+        }
+        response.write(Buffer.from(value));
+        take(parser.push(decoder.decode(value, { stream: true })));
+      }
+      const tail = decoder.decode();
+      if (tail) take(parser.push(tail));
+      take(parser.finish());
+      const leads = rememberLeads(root, collected);
       if (leads.length) {
         notifyDesk({
           title: 'New leads',
@@ -402,9 +445,13 @@ async function handleApi(request, response, url) {
           data: { url: '/?view=accounts' },
         });
       }
-      send(response, 200, { ok: true, explanation: result.explanation, leads });
+      response.end();
     } catch {
-      send(response, 502, { ok: false, error: 'The desk could not reach the lead webhook. Nothing was added.' });
+      if (!response.headersSent) {
+        send(response, 502, { ok: false, error: 'The desk could not reach the lead webhook. Nothing was added.' });
+        return;
+      }
+      response.end();
     }
     return;
   }

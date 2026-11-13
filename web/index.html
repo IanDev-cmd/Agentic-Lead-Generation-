@@ -1357,6 +1357,7 @@ window.Geo = Geo;
 <script src="/maps.js?v=1"></script>
 <script src="/orbs.js?v=2"></script>
 <script src="/radar.js?v=3"></script>
+<script src="/agent-stream.js?v=1"></script>
 <script>
 const brandPath = {
   sheets: "M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z",
@@ -2270,11 +2271,9 @@ document.getElementById("sourceFiles").onchange = async () => {
       asked.textContent = payload.map((item) => item.name).join(", ");
       box.append(asked);
       startResearchGlow();
-      let sent = false;
       try {
-        const result = await postAgentMode("sources", "", payload);
-        showAgentResult(payload.length === 1 ? payload[0].name : "Uploaded sources", result);
-        sent = result.ok;
+        const response = await postAgentMode("sources", "", payload);
+        await readAgentStream(response, payload.length === 1 ? payload[0].name : "Uploaded sources");
       } catch (error) {
         const reply = document.createElement("p");
         reply.textContent = error.message || "The desk could not reach the lead webhook.";
@@ -2284,7 +2283,6 @@ document.getElementById("sourceFiles").onchange = async () => {
         stopResearchGlow();
         document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
       }
-      if (sent) toast(accepted.length + (accepted.length === 1 ? " file sent." : " files sent."));
       return;
     }
     const response = await postDesk("/api/sources", { files: payload });
@@ -2335,7 +2333,7 @@ function paintAgentMode() {
 }
 async function postAgentMode(input, question, files) {
   const profile = profileBody();
-  const response = await postDesk("/api/agent", {
+  return postDesk("/api/agent", {
     input: input,
     question: question,
     sources: (files || []).filter((item) => item && item.data).map((item) => ({
@@ -2350,23 +2348,71 @@ async function postAgentMode(input, question, files) {
     region: profile.region,
     maxLeads: profile.maxLeads
   });
-  const body = await response.json().catch(() => ({}));
-  return { ok: response.ok && Boolean(body.ok), body: body };
 }
-function showAgentResult(title, result) {
-  const box = document.getElementById("docText");
-  const body = result.body || {};
-  if (!result.ok) {
-    const reply = document.createElement("p");
-    reply.textContent = body.error || "The lead webhook did not answer. Nothing was added.";
-    box.append(reply);
-    toast(reply.textContent);
-    return;
+function beginAgentBatch(title) {
+  const batch = { id: "batch-" + Date.now(), title: String(title || "Lead batch").slice(0, 80), explanation: "", leadIds: [] };
+  batches.unshift(batch);
+  activeBatchId = batch.id;
+  paintBatches();
+  return batch;
+}
+function pushAgentLead(raw) {
+  mergeLeads([raw]);
+  const found = leads.find((item) => item.id === leadKey(raw));
+  const batch = batches.find((item) => item.id === activeBatchId);
+  if (found && batch && !batch.leadIds.includes(found.id)) batch.leadIds.push(found.id);
+  if (found && !selected) pickLead(found);
+  paintBatches();
+  if (!document.getElementById("view-accounts").hidden) renderAccounts();
+  if (!document.getElementById("view-map").hidden) renderMap();
+  if (!document.getElementById("view-analytics").hidden && window.Radar) {
+    window.Radar.mount(document.getElementById("view-analytics"), batchLeads());
   }
-  const reply = document.createElement("p");
-  reply.textContent = body.explanation || ((body.leads || []).length ? "Leads are in the studio." : "The webhook answered with no leads.");
-  box.append(reply);
-  addBatch(title, body.explanation || "", body.leads || []);
+}
+async function readAgentStream(response, title) {
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || "The lead webhook did not answer. Nothing was added.");
+  }
+  if (!response.body || !window.AgentStream) throw new Error("The lead stream did not open.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parser = window.AgentStream.createAgentStreamParser();
+  const batch = beginAgentBatch(title);
+  const box = document.getElementById("docText");
+  let explanationNode = null;
+  let count = 0;
+  function apply(events) {
+    events.forEach((event) => {
+      if (event.type === "summary") {
+        batch.explanation = event.explanation || "";
+        if (!explanationNode) {
+          explanationNode = document.createElement("p");
+          box.append(explanationNode);
+        }
+        explanationNode.textContent = batch.explanation;
+      } else if (event.type === "lead") {
+        pushAgentLead(event.lead);
+        count += 1;
+      } else if (event.type === "error") {
+        throw new Error(event.error || "The lead webhook refused the request.");
+      }
+    });
+  }
+  while (true) {
+    const step = await reader.read();
+    if (step.done) break;
+    apply(parser.push(decoder.decode(step.value, { stream: true })));
+  }
+  const tail = decoder.decode();
+  if (tail) apply(parser.push(tail));
+  apply(parser.finish());
+  if (!count && !explanationNode) {
+    const reply = document.createElement("p");
+    reply.textContent = "The webhook answered with no leads.";
+    box.append(reply);
+  }
+  toast(count + (count === 1 ? " lead is in the studio." : " leads are in the studio."));
 }
 document.getElementById("workspaceSources").onclick = () => {
   openSheet("google");
@@ -2476,8 +2522,8 @@ document.getElementById("askForm").onsubmit = async (event) => {
   const checked = sources.filter((item) => item.saved);
   try {
     if (agentMode) {
-      const result = await postAgentMode("ask", text, checked);
-      showAgentResult(text, result);
+      const response = await postAgentMode("ask", text, checked);
+      await readAgentStream(response, text);
       return;
     }
     const response = await postDesk("/api/ask", {
