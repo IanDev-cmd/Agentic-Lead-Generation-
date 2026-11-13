@@ -11,7 +11,6 @@ import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
-import { collectSignals, mergeLeadRecords } from './lib/collectors/index.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 import QRCode from 'qrcode';
 import { broadcastPush, sendPushNotification, validPushSubscription, vapidPublicKey } from './lib/push.js';
@@ -383,7 +382,6 @@ async function handleApi(request, response, url) {
     }
     try {
       const built = partsForAsk(uploads, texts);
-      const signalsPromise = collectSignals(question);
       const answer = await askSources({
         apiKey,
         model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
@@ -393,10 +391,8 @@ async function handleApi(request, response, url) {
         urls: built.urls,
         tabular: built.tabular,
       });
-      const signals = await signalsPromise.catch(() => ({ notes: [], leads: [] }));
-      const leads = rememberLeads(root, mergeLeadRecords(answer.leads, signals.leads, question));
-      const notes = (signals.notes || []).slice(0, 4).join(' · ');
-      const explanation = [answer.explanation, notes ? `Public signals: ${notes}` : ''].filter(Boolean).join('\n\n');
+      const leads = rememberLeads(root, answer.leads);
+      const explanation = answer.explanation;
       if (leads.length) {
         notifyDesk({
           title: 'New leads',

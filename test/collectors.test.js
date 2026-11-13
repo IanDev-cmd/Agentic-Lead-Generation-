@@ -36,8 +36,11 @@ test('keyed collectors stay quiet when no free key is set', async () => {
 test('the gemini prompt asks for a complete public batch', () => {
   const prompt = askPrompt('photo of an electric scooter', { SELLER_OFFERING: 'Routing software' });
   assert.match(prompt, /Routing software/);
-  assert.match(prompt, /marketplace/i);
-  assert.match(prompt, /latitude/i);
+  assert.match(prompt, /one request/);
+  assert.match(prompt, /Kenya first/i);
   assert.match(prompt, /Do not invent an email address/);
-  assert.match(prompt, /10 companies/);
+  assert.match(prompt, /50 distinct companies/);
+  const joined = askPrompt('Generate leads for my company', {}, 'Source file Zanari.pdf:\nZanari Analytics sells analytics.');
+  assert.match(joined, /Generate leads for my company/);
+  assert.match(joined, /Zanari Analytics sells analytics/);
 });
