@@ -274,11 +274,12 @@ async function handleApi(request, response, url) {
       const brief = await narrateTerritory({
         apiKey: keys[0],
         ai: rotatingAi(keys),
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: (process.env.FREE_MODEL || 'gemini-3.6-flash').trim() || 'gemini-3.6-flash',
         facts,
       });
       send(response, 200, { ok: true, brief });
     } catch (error) {
+      console.error('[/api/territory/brief failed]', error?.status, error?.code, String(error?.message || error).slice(0, 400));
       send(response, 200, { ok: true, brief: deskText(error) });
     }
     return;
@@ -343,7 +344,7 @@ async function handleApi(request, response, url) {
       const found = await runAgentSearch({
         apiKey: keys[0],
         ai: rotatingAi(keys),
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: (process.env.FREE_MODEL || 'gemini-3.6-flash').trim() || 'gemini-3.6-flash',
         query,
         channel,
         profile: businessEnv(body),
@@ -359,6 +360,7 @@ async function handleApi(request, response, url) {
         leads,
       });
     } catch (error) {
+      console.error('[/api/agents/search failed]', error?.status, error?.code, String(error?.message || error).slice(0, 400));
       send(response, 200, {
         ok: true,
         channel,
@@ -405,7 +407,7 @@ async function handleApi(request, response, url) {
       const answer = await askSources({
         apiKey: keys[0],
         ai: rotatingAi(keys),
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: (process.env.FREE_MODEL || 'gemini-3.6-flash').trim() || 'gemini-3.6-flash',
         question,
         profile: businessEnv(body),
         parts: built.parts,
@@ -423,6 +425,7 @@ async function handleApi(request, response, url) {
       }
       send(response, 200, { ok: true, explanation, leads });
     } catch (error) {
+      console.error('[/api/ask failed]', error?.status, error?.code, String(error?.message || error).slice(0, 400));
       send(response, 200, { ok: true, explanation: deskText(error), leads: [] });
     }
     return;

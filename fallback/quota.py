@@ -1,6 +1,7 @@
 """Local counter for Gemini Search grounding so one run cannot spend the free allotment.
 
 Published Gemini Developer API limits (confirm on the pricing page before raising them):
+- The default model, gemini-3.6-flash, is a Gemini 3 model: 1,500 grounded requests per day and 5,000 per month.
 - gemini-2.5-flash and Flash-Lite share 500 grounded requests per day on the free tier.
 - Gemini 3 and newer models share 5,000 grounded requests per month, with a 1,500 request daily cap.
 gemini-1.5-flash is treated with the stricter daily cap. This file cannot see usage from other apps.
