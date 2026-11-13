@@ -23,7 +23,7 @@ Apps Script doPost
   Sheets  Docs  Drive  Gmail draft  Maps  Calendar  Tasks
 ```
 
-Free-tier generation tries `gemini-3.8-flash`, then `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, and `gemma-4-27b-it`. A 404, 429, or 503 sends the same request to the next model. `FREE_MODEL` selects where that chain starts when it names one of those models. Gemini 3 grounding is 1,500 requests per day and 5,000 per month. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for the model that starts the chain.
+`gemini-2.5-flash` grounding on the free tier is 500 requests per day, shared with Flash-Lite. The 5,000-search monthly figure on Google's pricing page applies to Gemini 3 and newer models. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
 
 ## Lead engine
 
