@@ -1,0 +1,852 @@
+{
+  "name": "Multimodal Lead Gen",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multimodal-lead-gen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fdeff22c-dba6-46a6-b3f6-4260df97ed77",
+      "name": "Lead Gen Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [0, 240],
+      "webhookId": "9de18b12-d304-4cac-8e9d-df24a3da6dad"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const incoming = $input.first();\nconst item = incoming.json || {};\nconst body = item.body && typeof item.body === 'object' && !Array.isArray(item.body) ? item.body : item;\nconst profile = body.profile && typeof body.profile === 'object' ? body.profile : {};\nconst question = String(body.question || body.notes || body.text || body.message || '').trim();\nconst explicitUrl = String(body.url || body.website_url || body.website || '').trim();\nconst urlMatch = question.match(/https?:\\/\\/[^\\s)]+/i);\nconst url = explicitUrl || (urlMatch ? urlMatch[0] : '');\nconst sources = Array.isArray(body.sources) ? body.sources.slice(0, 8) : [];\nconst binary = { ...(incoming.binary || {}) };\nfor (let index = 0; index < sources.length; index++) {\n  const file = sources[index] || {};\n  const data = String(file.data || '').replace(/^data:[^,]*,/, '').replace(/\\s/g, '');\n  if (!data) continue;\n  const name = String(file.name || `file-${index + 1}`);\n  const mime = String(file.mime || 'application/octet-stream');\n  const key = index === 0 && !binary.data ? 'data' : `data_${index}`;\n  const buffer = Buffer.from(data, 'base64');\n  if (!buffer.length) continue;\n  try {\n    binary[key] = await this.helpers.prepareBinaryData(buffer, name, mime);\n  } catch (error) {\n    binary[key] = { data, mimeType: mime, fileName: name };\n  }\n}\nconst notes = [\n  question,\n  profile.sellerName ? `Business: ${profile.sellerName}` : '',\n  profile.offering ? `Offering: ${profile.offering}` : '',\n  profile.icp ? `Ideal customer: ${profile.icp}` : '',\n  profile.industry ? `Industry: ${profile.industry}` : '',\n  profile.region ? `Region: ${profile.region}` : '',\n  profile.maxLeads ? `Maximum leads: ${profile.maxLeads}` : '',\n].filter(Boolean).join('\\n');\nreturn [{\n  json: {\n    input: body.input === 'sources' ? 'sources' : 'ask',\n    notes,\n    question,\n    url,\n    profile,\n    attachment_count: Object.keys(binary).length,\n  },\n  binary,\n}];"
+      },
+      "id": "c4e8a1b2-7d3f-4a91-9e6c-2b5f0a8d11e4",
+      "name": "Prepare Desk Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [144, 448]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "notes",
+              "name": "notes",
+              "type": "string",
+              "value": "={{ $json.notes }}"
+            },
+            {
+              "id": "url",
+              "name": "url",
+              "type": "string",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "id": "attachment_count",
+              "name": "attachment_count",
+              "type": "number",
+              "value": "={{ $json.attachment_count }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {
+          "stripBinary": false
+        }
+      },
+      "id": "2f93339f-f42e-4f0b-aed8-f07a4fe591a5",
+      "name": "Normalize Request",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [288, 656]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.attachment_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3c955885-bc34-49c9-a8f4-0ba698feb701",
+      "name": "Has Attachments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [512, 464]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "models/gemini-2.5-pro"
+        },
+        "text": "You are a Senior B2B Growth Strategist. These attached files (pitch decks, brochures, product screenshots, event flyers, voice memos) all describe ONE product or service. Analyze every file together: transcribe and interpret audio, read all text and visuals in images and PDFs. Produce a detailed briefing covering: what the product/service is, core features, value proposition, pricing signals, target customers mentioned or implied, market positioning, competitors, geography, proof points, and any names, events or industries referenced. Be factual and exhaustive; do not invent details.",
+        "inputType": "binary",
+        "binaryPropertyName": "={{ Object.keys($input.item.binary || {}).join(\",\") }}",
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      },
+      "id": "3ab8a8c0-be9a-42b1-8fa2-bee33b827311",
+      "name": "Analyze Attachments (Gemini)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [736, 368],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "attachment_analysis",
+              "name": "attachment_analysis",
+              "type": "string",
+              "value": "={{ ($json.content?.parts ?? []).map(p => p.text ?? \"\").join(\"\\n\").trim() || JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6f865ffe-cee2-4805-b046-0fbde5da4ecc",
+      "name": "Attachment Insights",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [960, 368]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "attachment_analysis",
+              "name": "attachment_analysis",
+              "type": "string",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "17fc21bb-9c77-4dc8-8375-709aa60d0dd9",
+      "name": "No Attachments",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [960, 560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff2b7431-b5b2-4c4d-8aad-25536d7a155f",
+      "name": "Has Website URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [512, 848]
+    },
+    {
+      "parameters": {
+        "url": "=https://r.jina.ai/{{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/plain"
+            },
+            {
+              "name": "X-Return-Format",
+              "value": "markdown"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "03894f63-50c0-4bfc-aab1-047939500896",
+      "name": "Scrape Website (Jina Reader)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [736, 752],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "website_text",
+              "name": "website_text",
+              "type": "string",
+              "value": "={{ (typeof $json.data === \"string\" ? $json.data : \"\").slice(0, 30000) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0d8722c4-e6da-4762-a4dc-cf1e77536457",
+      "name": "Website Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [960, 752]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "website_text",
+              "name": "website_text",
+              "type": "string",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "45f16163-9458-4ab0-98f0-a207152f4c5a",
+      "name": "No Website",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [960, 944]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "d9b92d7b-69d6-4214-a5da-2c2322e82c7b",
+      "name": "Combine Context",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [1184, 656]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "notes",
+              "name": "notes",
+              "type": "string",
+              "value": "={{ $(\"Normalize Request\").first().json.notes }}"
+            },
+            {
+              "id": "source_url",
+              "name": "source_url",
+              "type": "string",
+              "value": "={{ $(\"Normalize Request\").first().json.url }}"
+            },
+            {
+              "id": "attachment_analysis",
+              "name": "attachment_analysis",
+              "type": "string",
+              "value": "={{ $json.attachment_analysis ?? \"\" }}"
+            },
+            {
+              "id": "website_text",
+              "name": "website_text",
+              "type": "string",
+              "value": "={{ $json.website_text ?? \"\" }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "373360f1-d645-4aba-99a7-cde17591bebc",
+      "name": "Unified Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [1408, 656]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following multimodal context about a product/service and produce the Ideal Customer Profile.\n\n## Raw notes from the user\n{{ $json.notes || \"(none)\" }}\n\n## Source website ({{ $json.source_url || \"none\" }})\n{{ $json.website_text || \"(none)\" }}\n\n## Analysis of attached files (PDFs, images, audio)\n{{ $json.attachment_analysis || \"(none)\" }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a Senior B2B Growth Strategist. From the multimodal inputs (notes, scraped website, and an analysis of attached PDFs, images and audio), understand the product/service, its value proposition and market positioning. Then define a precise Ideal Customer Profile: company_summary (what the seller offers and why it matters), target_industries, company_size (employee/revenue range), target_geographies, decision_maker_titles, pain_points the product solves, and exactly 5 search_queries. Each search query must be a Google/Boolean search string designed to surface REAL companies matching the ICP (use quotes, OR, site: and intitle: operators where useful; avoid queries that return listicles of vendors similar to the seller). Return only the requested JSON."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "3ab3bd28-5bbb-4530-98ce-5cec101f809d",
+      "name": "Generate ICP",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [1632, 656],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {
+          "maxOutputTokens": 8192,
+          "temperature": 0.3
+        }
+      },
+      "id": "08472b10-a156-466b-b058-2d53354bc367",
+      "name": "Gemini 2.5 Pro (ICP)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [1640, 888],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"required\":[\"company_summary\",\"target_industries\",\"company_size\",\"target_geographies\",\"decision_maker_titles\",\"pain_points\",\"search_queries\"],\"properties\":{\"company_summary\":{\"type\":\"string\"},\"target_industries\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"company_size\":{\"type\":\"string\"},\"target_geographies\":{\"type\":\"string\"},\"decision_maker_titles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"pain_points\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"search_queries\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":5,\"maxItems\":5}}}"
+      },
+      "id": "2f4fc091-7677-4053-852e-54e88ffc4855",
+      "name": "ICP Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1768, 888]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Find 15 to 20 high-intent B2B leads for the seller described below.\n\n## Ideal Customer Profile\n{{ JSON.stringify($json.output, null, 2) }}\n\n## Search queries to execute\n{{ ($json.output.search_queries || []).map((q, i) => (i + 1) + \". \" + q).join(\"\\n\") }}",
+        "options": {
+          "systemMessage": "You are an autonomous B2B lead researcher.\n\nTOOLS\n- web_search (Tavily): run web searches and get result snippets/URLs. Use it to execute EVERY one of the provided search queries, plus follow-up searches (e.g. \"<company> CEO\", \"<company> head of operations linkedin\", \"<company> news\").\n- scrape_website: read a web page as markdown. Use it on candidate company homepages and their /about, /team, /leadership, /company and /contact pages.\n\nPROCESS\n1. Iterate through all 5 search queries with web_search. Collect candidate companies that are real operating businesses (not directories, listicles, marketplaces, or competitors of the seller).\n2. For each promising candidate, scrape its website to confirm it matches the ICP (industry, size, geography) and to extract real names, roles, public emails, phone numbers and LinkedIn URLs.\n3. Combine live findings with your own knowledge to verify relevance, likely tech stack and recent news, but NEVER invent people, emails or phone numbers. Only report contact details you actually saw in a search result or scraped page.\n4. Prioritise decision-makers whose titles match decision_maker_titles. Avoid generic info@/hello@ emails when a named person's address is public; fall back to general company contact details only if no individual contact is publicly listed. If no email is found, write \"Not publicly found\".\n5. Keep going until you have 15 to 20 verified leads that strictly match the ICP.\n\nOUTPUT\nReturn a plain-text research report listing each lead with: company name, website URL, industry, why it fits the ICP, contact name, contact title, email, phone or LinkedIn, source URLs where you found the details, headquarters when a page states it, and any recent news or tech-stack notes useful for personalisation.",
+          "maxIterations": 60
+        }
+      },
+      "id": "9b344d55-fd14-4159-bf09-4d9b5fb161b4",
+      "name": "Lead Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [2032, 656],
+      "retryOnFail": true,
+      "maxTries": 2
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {
+          "maxOutputTokens": 32768,
+          "temperature": 0.2
+        }
+      },
+      "id": "d6185e0b-4e51-4851-9e75-a9756f312311",
+      "name": "Gemini 2.5 Pro (Research)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [1976, 888],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "5cacda1c-9e96-420c-b6ad-37c7fa80b358",
+      "name": "web_search",
+      "type": "@n8n/mcp-registry.tavily",
+      "typeVersion": 1.1,
+      "position": [2104, 888],
+      "credentials": {
+        "tavilyMcpOAuth2Api": {
+          "id": "o0f8wk9XO6d2KWL6",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Reads any public web page and returns its main content as clean markdown text. Use it to visit company homepages and their About, Team, Leadership and Contact pages to find real people, titles, emails, phone numbers and LinkedIn links. Input: a full URL.",
+        "url": "=https://r.jina.ai/{{ $fromAI('url', 'Full https URL of the page to read, e.g. https://acme.com/about', 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/plain"
+            },
+            {
+              "name": "X-Return-Format",
+              "value": "markdown"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000
+        },
+        "optimizeResponse": true,
+        "responseType": "text",
+        "truncateResponse": true,
+        "maxLength": 15000
+      },
+      "id": "a49b40f1-b94d-44a3-805c-f21fab87a464",
+      "name": "scrape_website",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [2232, 888]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Seller ICP\n{{ JSON.stringify($(\"Generate ICP\").first().json.output, null, 2) }}\n\n## Raw research report\n{{ $json.output }}\n\n## Maximum leads\n{{ $(\"Prepare Desk Payload\").first().json.profile.maxLeads || 20 }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a meticulous B2B data analyst. Clean and deduplicate the research report by company domain. Return a JSON object whose only top-level key is \"leads\". Drop leads that do not match the ICP and drop directories, listicles, marketplaces, and competitors. Return at most the maximum leads named in the prompt, and fewer when the report does not support that many. Never invent people, emails, phone numbers, or coordinates.\n\nEach lead object must use these exact keys:\n- company: company name\n- domain: hostname only, such as acme.com, with no scheme and no path\n- website: full https URL of the official site\n- hq: headquarters city or address from a public page, or an empty string\n- contact: a real person's name from the report, or an empty string\n- title: that person's role, or an empty string\n- email: an address that appears in the report, or an empty string. Never write \"Not publicly found\"\n- pain: one sentence naming a public fact about this buyer that matches the seller\n- hook: one or two sentences connecting that same public fact to the seller's product. Empty only when there is no public fact\n- priority: the exact word High when hook is filled and the company is a strong ICP match, otherwise the exact word Low\n- source: the public page URL where the buyer fact was found. Use the company website when no tighter page is known\n- photo: a direct logo image URL, or an empty string\n\nDo not use company_name, website_url, contact_name, contact_title, fit_reasoning, personalized_icebreaker, icp_fit_score, or phone_or_linkedin. Sort High rows before Low rows."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "f52ae288-3c1c-4fd9-9ca9-69aa1a684681",
+      "name": "Structure Leads",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [2464, 656],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "maxOutputTokens": 16384,
+          "temperature": 0.1
+        }
+      },
+      "id": "5bc5de42-295c-4c1e-bab8-6ce6443554df",
+      "name": "Gemini 2.5 Flash (Structuring)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [2472, 888],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"required\":[\"leads\"],\"properties\":{\"leads\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":20,\"items\":{\"type\":\"object\",\"required\":[\"company\",\"domain\",\"website\",\"pain\",\"hook\",\"priority\",\"source\"],\"properties\":{\"company\":{\"type\":\"string\"},\"domain\":{\"type\":\"string\"},\"website\":{\"type\":\"string\"},\"hq\":{\"type\":\"string\"},\"contact\":{\"type\":\"string\"},\"title\":{\"type\":\"string\"},\"email\":{\"type\":\"string\"},\"pain\":{\"type\":\"string\"},\"hook\":{\"type\":\"string\"},\"priority\":{\"type\":\"string\",\"enum\":[\"High\",\"Low\"]},\"source\":{\"type\":\"string\"},\"photo\":{\"type\":\"string\"}}}}}}"
+      },
+      "id": "86022718-627f-45a0-8186-08abaa2ba249",
+      "name": "Leads Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [2600, 888]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.leads",
+        "options": {}
+      },
+      "id": "ca056e37-03bf-499d-8617-3cd999cfffaa",
+      "name": "Split Leads",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [2816, 656]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const output = $(\"Structure Leads\").first().json.output || {};\nconst icp = $(\"Generate ICP\").first().json.output || {};\nconst rows = Array.isArray(output.leads) ? output.leads : [];\nfunction blank(value) {\n  const text = String(value ?? '').trim();\n  if (!text || /^(not publicly found|unknown|n\\/a|none|no public(?: email| contact)?)$/i.test(text)) return '';\n  return text;\n}\nfunction hostOf(website) {\n  try { return new URL(website).hostname.replace(/^www\\./, ''); } catch (error) { return ''; }\n}\nconst leads = rows.map((row) => {\n  const website = String(row.website || row.website_url || row.url || '').trim();\n  const domain = String(row.domain || '').trim().replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0] || hostOf(website);\n  const hook = blank(row.hook || row.personalized_icebreaker);\n  const score = Number(row.icp_fit_score || 0);\n  const priority = hook && (/^high$/i.test(String(row.priority || '')) || (!row.priority && score >= 7)) ? 'High' : 'Low';\n  const emailText = blank(row.email);\n  return {\n    company: String(row.company || row.company_name || row.name || '').trim(),\n    domain,\n    website,\n    hq: String(row.hq || row.hqAddress || row.headquarters || '').trim(),\n    lat: row.lat == null || row.lat === '' || Number.isNaN(Number(row.lat)) ? null : Number(row.lat),\n    lng: row.lng == null || row.lng === '' || Number.isNaN(Number(row.lng)) ? null : Number(row.lng),\n    contact: blank(row.contact || row.contact_name),\n    title: blank(row.title || row.contact_title),\n    email: emailText.includes('@') ? emailText : '',\n    pain: String(row.pain || row.fit_reasoning || '').trim(),\n    hook,\n    priority,\n    source: String(row.source || website || '').trim(),\n    photo: String(row.photo || row.logo || '').trim(),\n  };\n}).filter((row) => row.company);\nconst summary = String(icp.company_summary || '').replace(/\\s+/g, ' ').trim();\nconst count = leads.length + (leads.length === 1 ? ' company.' : ' companies.');\nconst explanation = [summary, count].filter(Boolean).join(' ').slice(0, 600);\nreturn [{ json: { ok: true, explanation, leads } }];"
+      },
+      "id": "b7c1d2e3-4f50-4a6b-8c9d-0e1f2a3b4c5d",
+      "name": "Shape Desk Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3040, 656]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "19df6ebc-0570-41e4-93ea-b484100d98e1",
+      "name": "Return Leads",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [3264, 656],
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "Lead Gen Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Desk Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Desk Payload": {
+      "main": [
+        [
+          {
+            "node": "Normalize Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Request": {
+      "main": [
+        [
+          {
+            "node": "Has Attachments?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Website URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Analyze Attachments (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Attachments (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Attachment Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attachment Insights": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Attachments": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Website URL?": {
+      "main": [
+        [
+          {
+            "node": "Scrape Website (Jina Reader)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Website (Jina Reader)": {
+      "main": [
+        [
+          {
+            "node": "Website Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website Text": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "No Website": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine Context": {
+      "main": [
+        [
+          {
+            "node": "Unified Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unified Context": {
+      "main": [
+        [
+          {
+            "node": "Generate ICP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate ICP": {
+      "main": [
+        [
+          {
+            "node": "Lead Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Pro (ICP)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate ICP",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ICP Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Generate ICP",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Structure Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Pro (Research)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Lead Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "web_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "Lead Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "scrape_website": {
+      "ai_tool": [
+        [
+          {
+            "node": "Lead Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structure Leads": {
+      "main": [
+        [
+          {
+            "node": "Split Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Flash (Structuring)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structure Leads",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leads Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Structure Leads",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Leads": {
+      "main": [
+        [
+          {
+            "node": "Shape Desk Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Desk Response": {
+      "main": [
+        [
+          {
+            "node": "Return Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "77574eceb8221a4657ec1ee16766d124dd1388e0e10d36285296859c97e324f1"
+  }
+}

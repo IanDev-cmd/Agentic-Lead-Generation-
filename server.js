@@ -10,6 +10,7 @@ import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
+import { agentRequest, postAgentWebhook } from './lib/agent-webhook.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
 import { resolveMark } from './lib/mark.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
@@ -245,7 +246,7 @@ async function handleApi(request, response, url) {
     }
     return;
   }
-  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || url.pathname === '/api/agents/search' || url.pathname === '/api/territory/brief' || /\/approve$/.test(url.pathname);
+  const metered = url.pathname === '/api/runs' || url.pathname === '/api/ask' || url.pathname === '/api/agent' || url.pathname === '/api/agents/search' || url.pathname === '/api/territory/brief' || /\/approve$/.test(url.pathname);
   if (metered && limited()) {
     send(response, 429, { ok: false, error: 'Too many desk writes. Wait a few minutes. Nothing was sent.' });
     return;
@@ -360,6 +361,44 @@ async function handleApi(request, response, url) {
     } catch (error) {
       const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
       send(response, 502, { ok: false, error: message || 'The agent did not answer. Nothing was saved.' });
+    }
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/agent') {
+    let body = {};
+    try {
+      body = await readJson(request);
+    } catch {
+      send(response, 400, { ok: false, error: 'The agent request was not JSON. Nothing was sent.' });
+      return;
+    }
+    const payload = agentRequest(body);
+    if (payload.input === 'ask' && !payload.question) {
+      send(response, 422, { ok: false, error: 'The question was empty. Nothing was sent.' });
+      return;
+    }
+    if (payload.input === 'sources' && !payload.sources.length) {
+      send(response, 422, { ok: false, error: 'No readable file was attached. Nothing was sent.' });
+      return;
+    }
+    try {
+      const result = await postAgentWebhook(payload);
+      if (!result.ok) {
+        const status = result.status >= 400 && result.status < 600 ? result.status : 502;
+        send(response, status, { ok: false, error: result.error || 'The lead webhook did not answer. Nothing was added.' });
+        return;
+      }
+      const leads = rememberLeads(root, result.leads);
+      if (leads.length) {
+        notifyDesk({
+          title: 'New leads',
+          body: `${leads.length} ${leads.length === 1 ? 'company' : 'companies'} came back from agent mode.`,
+          data: { url: '/?view=accounts' },
+        });
+      }
+      send(response, 200, { ok: true, explanation: result.explanation, leads });
+    } catch {
+      send(response, 502, { ok: false, error: 'The desk could not reach the lead webhook. Nothing was added.' });
     }
     return;
   }
@@ -628,7 +667,7 @@ async function handleStatic(response, pathname) {
 }
 
 export function createDeskServer() {
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url || '/', 'http://127.0.0.1');
       if (url.pathname.startsWith('/api/')) {
@@ -644,6 +683,9 @@ export function createDeskServer() {
       send(response, 500, { ok: false, error: 'The desk hit an unexpected error.' });
     }
   });
+  server.requestTimeout = 960000;
+  server.headersTimeout = 965000;
+  return server;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {

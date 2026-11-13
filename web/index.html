@@ -397,6 +397,7 @@
   .add-src { border: 0; background: #e5f8ee; color: var(--ok); }
   .add-src svg { width: 16px; height: 16px; }
   .saved-src { margin-top: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  .saved-src.is-on { background: #202124; color: #fff; border-color: #202124; }
   .src-row {
     display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
     padding: 8px 2px;
@@ -1074,7 +1075,7 @@
           <svg class="ico-bob" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           Add sources
         </button>
-        <button type="button" class="saved-src" id="savedSources">Saved sources</button>
+        <button type="button" class="saved-src" id="agentMode" aria-pressed="false">Agent Mode</button>
         <button type="button" class="saved-src" id="workspaceSources">Google Workspace</button>
         <label class="src-row"><input type="checkbox" id="selectAll"> Select all</label>
         <div id="sourceList"></div>
@@ -1440,7 +1441,7 @@ const dotViews = [
 ];
 let sourceSeq = 1;
 const sources = [];
-let savedOnly = false;
+let agentMode = false;
 let slide = 0;
 let timer = null;
 let phase = "idle";
@@ -2081,7 +2082,7 @@ function renderWorkspace() {
     });
 }
 function visibleSources() {
-  return savedOnly ? sources.filter((item) => item.saved) : sources;
+  return sources;
 }
 function renderSources() {
   const rows = visibleSources();
@@ -2153,6 +2154,40 @@ document.getElementById("sourceFiles").onchange = async () => {
   if (!accepted.length) return;
   try {
     const payload = await Promise.all(accepted.map(fileToPayload));
+    if (agentMode) {
+      payload.forEach((item) => {
+        sources.push({
+          id: "src-" + (sourceSeq++),
+          name: item.name,
+          kind: kindFromName(item.name),
+          mime: item.mime,
+          data: item.data,
+          saved: true
+        });
+      });
+      renderSources();
+      const box = document.getElementById("docText");
+      const asked = document.createElement("p");
+      asked.textContent = payload.map((item) => item.name).join(", ");
+      box.append(asked);
+      startResearchGlow();
+      let sent = false;
+      try {
+        const result = await postAgentMode("sources", "", payload);
+        showAgentResult(payload.length === 1 ? payload[0].name : "Uploaded sources", result);
+        sent = result.ok;
+      } catch (error) {
+        const reply = document.createElement("p");
+        reply.textContent = error.message || "The desk could not reach the lead webhook.";
+        box.append(reply);
+        toast(reply.textContent);
+      } finally {
+        stopResearchGlow();
+        document.querySelector(".doc-main").scrollTop = document.querySelector(".doc-main").scrollHeight;
+      }
+      if (sent) toast(accepted.length + (accepted.length === 1 ? " file sent." : " files sent."));
+      return;
+    }
     const response = await postDesk("/api/sources", { files: payload });
     const body = await response.json();
     if (!response.ok || !body.ok) {
@@ -2183,14 +2218,65 @@ function fileToPayload(file) {
     reader.readAsDataURL(file);
   });
 }
+function kindFromName(name) {
+  const ext = String(name || "").split(".").pop().toLowerCase();
+  if (["png", "jpg", "jpeg", "gif", "webp", "heic"].includes(ext)) return "Image";
+  if (["mp4", "webm", "mov", "mpeg"].includes(ext)) return "Video";
+  if (["mp3", "wav", "m4a"].includes(ext)) return "Audio";
+  if (ext === "pdf") return "PDF";
+  if (["doc", "docx", "odt"].includes(ext)) return "Word";
+  if (["xls", "xlsx", "csv", "tsv"].includes(ext)) return "Sheet";
+  if (["ppt", "pptx", "odp"].includes(ext)) return "Slides";
+  return "File";
+}
+function paintAgentMode() {
+  const button = document.getElementById("agentMode");
+  button.classList.toggle("is-on", agentMode);
+  button.setAttribute("aria-pressed", agentMode ? "true" : "false");
+}
+async function postAgentMode(input, question, files) {
+  const profile = profileBody();
+  const response = await postDesk("/api/agent", {
+    input: input,
+    question: question,
+    sources: (files || []).filter((item) => item && item.data).map((item) => ({
+      name: item.name,
+      mime: item.mime || "application/octet-stream",
+      data: item.data
+    })),
+    sellerName: profile.sellerName,
+    offering: profile.offering,
+    icp: profile.icp,
+    industry: profile.industry,
+    region: profile.region,
+    maxLeads: profile.maxLeads
+  });
+  const body = await response.json().catch(() => ({}));
+  return { ok: response.ok && Boolean(body.ok), body: body };
+}
+function showAgentResult(title, result) {
+  const box = document.getElementById("docText");
+  const body = result.body || {};
+  if (!result.ok) {
+    const reply = document.createElement("p");
+    reply.textContent = body.error || "The lead webhook did not answer. Nothing was added.";
+    box.append(reply);
+    toast(reply.textContent);
+    return;
+  }
+  const reply = document.createElement("p");
+  reply.textContent = body.explanation || ((body.leads || []).length ? "Leads are in the studio." : "The webhook answered with no leads.");
+  box.append(reply);
+  addBatch(title, body.explanation || "", body.leads || []);
+}
 document.getElementById("workspaceSources").onclick = () => {
   openSheet("google");
   loadWorkspaceItems();
 };
-document.getElementById("savedSources").onclick = () => {
-  savedOnly = !savedOnly;
-  renderSources();
-  toast(savedOnly ? "Showing saved sources." : "Showing every source.");
+document.getElementById("agentMode").onclick = () => {
+  agentMode = !agentMode;
+  paintAgentMode();
+  toast(agentMode ? "Agent mode is on. Uploads and the ask bar go to the lead webhook." : "Agent mode is off.");
 };
 document.getElementById("selectAll").onchange = () => {
   const on = document.getElementById("selectAll").checked;
@@ -2288,6 +2374,11 @@ document.getElementById("askForm").onsubmit = async (event) => {
   const profile = profileBody();
   const checked = sources.filter((item) => item.saved);
   try {
+    if (agentMode) {
+      const result = await postAgentMode("ask", text, checked);
+      showAgentResult(text, result);
+      return;
+    }
     const response = await postDesk("/api/ask", {
       question: text,
       uploads: checked.filter((item) => item.serverId).map((item) => item.serverId),
