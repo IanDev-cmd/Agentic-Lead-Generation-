@@ -121,9 +121,9 @@
     background: rgba(255,255,255,0.55);
   }
   #gate .rail button.on { width: 12px; height: 12px; background: #fff; }
-  #gate .copy { left: 108px; top: 42%; transform: translateY(-50%); width: min(360px, 38%); }
-  #gate .copy h1 { margin: 0 0 12px; font-size: clamp(32px, 4vw, 44px); font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
-  #gate .copy p { margin: 0 0 26px; max-width: 320px; font-size: 13px; line-height: 1.55; font-weight: 500; color: rgba(255,255,255,0.92); }
+  #gate .copy { left: 108px; top: 42%; transform: translateY(-50%); width: min(760px, calc(100% - 150px)); }
+  #gate .copy h1 { margin: 0 0 12px; font-size: clamp(32px, 4vw, 44px); font-weight: 700; letter-spacing: 0.04em; line-height: 1; white-space: nowrap; }
+  #gate .copy p { margin: 0 0 26px; max-width: 460px; font-size: 13px; line-height: 1.55; font-weight: 500; color: rgba(255,255,255,0.92); white-space: pre-line; }
   #gate .enter {
     display: inline-grid; place-items: center; min-width: 118px; height: 36px; padding: 0 22px;
     border-radius: 999px; border: 1.5px solid #fff; background: transparent; color: #fff; font-size: 13px; font-weight: 600;
@@ -983,7 +983,7 @@
     </div>
     <div class="rail" id="landRail" aria-label="Slides"></div>
     <div class="copy">
-      <h1 id="landTitle">DESK</h1>
+      <h1 id="landTitle">Agentic Lead Generation</h1>
       <p id="landBlurb"></p>
       <button type="button" class="enter" id="gateEnter">Enter</button>
     </div>
@@ -1341,7 +1341,7 @@ function icon(name) {
 const spinner = `<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="14 40" stroke-linecap="round"/></svg>`;
 
 const slides = [
-  { title: "DESK", text: "Start from an ideal customer profile. The desk shows planning, search, and drafting while the batch is still running." },
+  { title: "Agentic Lead Generation", text: "Stop Chasing Leads. Deploy AI Agents That Close Your Pipeline.\n\nMeet Alpha—the autonomous AI workforce that finds, researches, and books qualified meetings on your calendar." },
   { title: "ANALYTICS", text: "Each company is scored against the ICP. Stages move from discovery to a final match. Nothing is sent from this desk." },
   { title: "WORKSPACE", text: "Sheets, Docs, Drive, and Gmail drafts are the handoff. The pitch stays here until you approve it." }
 ];
