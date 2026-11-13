@@ -25,6 +25,25 @@ Apps Script doPost
 
 `gemini-2.5-flash` grounding on the free tier is 500 requests per day, shared with Flash-Lite. The 5,000-search monthly figure on Google's pricing page applies to Gemini 3 and newer models. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
 
+## Lead engine
+
+`POST /api/ask` still returns `{ ok, explanation, leads }`. The desk page is unchanged. `PIPELINE_ENABLED=true` (the default) runs `lib/pipeline/` instead of one Gemini search:
+
+1. The upload becomes a targeting spec. The seller and its existing clients are excluded.
+2. The spec becomes 12 to 20 short signal queries. Region order comes from the spec, not a hardcoded country.
+3. Each query is one grounded search. Redirect URLs are resolved before they are stored.
+4. Pages are fetched and quoted. A quote that is not on the page cannot make a lead High.
+5. Dead sites, directories, the seller, existing clients, and duplicates are dropped.
+6. Fit is scored in code. High requires tier A or B, a verified quote, and a hook. Famous organisations without that quote stay out of High.
+7. A public email is kept only when it is on the company's own site.
+8. The rows are mapped to the existing lead fields. `output/runs/<id>/trace.json` records the run and is not shown in the desk.
+
+`PIPELINE_MAX_QUERIES` (default 14) is the grounded-call cap for this path. `FREE_GROUNDING_CALLS_PER_RUN` still caps the Python fallback. `PIPELINE_CONCURRENCY` (3), `PIPELINE_DEADLINE_MS` (80000), `PIPELINE_MIN_TIER` (B), and `PIPELINE_ENTERPRISE_HINTS` tune the run. The request stops starting new work at the deadline and returns what it has.
+
+`PIPELINE_ENABLED=false` restores the single grounded search.
+
+`USE_BROWSER_AGENT` defaults to false. Turning it on spawns `agents/web-agent-stack/integration/browse_readonly.py` and, on any failure, keeps the HTTP evidence. It does not log in or submit forms. `linkedin-mcp-server` is not on this path. It would need the user's own LinkedIn session and has to stay within LinkedIn's terms. The desk does not store those credentials, and the default Docker image does not install a browser.
+
 ## Free-tier boundary
 
 Sheets, Docs, Drive, Gmail drafts, the built-in Maps geocoder, Calendar, and Tasks run inside a normal Google account and Apps Script quotas. No Maps Platform key and no paid Workspace add-on is required.

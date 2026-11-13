@@ -71,3 +71,7 @@ The desk page is still one HTML file. The route, safety, and lead rules it depen
 No open remediation. Before a live Gemini run, set `DRY_RUN=false` and keep `BILLING_ENABLED` as an explicit opt-in. The business profile is sent from the desk with that run.
 
 After changing `apps-script/Code.gs`, redeploy the web app (Deploy > Manage deployments > Edit > Version: New version > Deploy). The live `/exec` URL keeps running the previous version until that new version is deployed.
+
+## Lead engine
+
+`POST /api/ask` is a staged search in `lib/pipeline/` when `PIPELINE_ENABLED` is not false. The response is still `{ ok, explanation, leads }` with the same lead fields. Extra score fields may be present. The desk does not read them. High priority now requires a verified quote from the buyer's own page, not only a hook sentence. `PIPELINE_ENABLED=false` keeps the previous single Gemini search. Traces stay in `output/runs/<id>/trace.json` and are not a route.

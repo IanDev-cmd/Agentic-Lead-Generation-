@@ -29,6 +29,20 @@ services:
         value: gemini-2.5-flash
       - key: FREE_GROUNDING_CALLS_PER_RUN
         value: "5"
+      - key: PIPELINE_ENABLED
+        value: "true"
+      - key: PIPELINE_MAX_QUERIES
+        value: "14"
+      - key: PIPELINE_CONCURRENCY
+        value: "3"
+      - key: PIPELINE_DEADLINE_MS
+        value: "80000"
+      - key: PIPELINE_MIN_TIER
+        value: "B"
+      - key: PIPELINE_ENTERPRISE_HINTS
+        value: "listed bank,national telecom,national health system,multinational"
+      - key: USE_BROWSER_AGENT
+        value: "false"
       - key: POLL_INITIAL_DELAY_MS
         value: "5000"
       - key: POLL_MAX_DELAY_MS
