@@ -3,7 +3,6 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
-import { geminiKeys, isQuota } from './lib/keys.js';
 import { postAppsScript } from './lib/webhook.js';
 import { shouldDelegate } from './lib/route.js';
 
@@ -63,7 +62,7 @@ function loadConfig() {
     dryRun: flag('DRY_RUN'),
     reportFile: (process.env.REPORT_FILE || '').trim(),
     resumeId: (process.env.RESUME_INTERACTION_ID || '').trim(),
-    apiKey: geminiKeys()[0] || '',
+    apiKey: (process.env.GEMINI_API_KEY || '').trim(),
     webhookUrl: (process.env.GOOGLE_WEBHOOK_URL || '').trim(),
     webhookSecret: (process.env.WEBHOOK_SECRET || '').trim(),
     agent: (process.env.DEEP_RESEARCH_AGENT || 'deep-research-preview-04-2026').trim(),
@@ -303,31 +302,9 @@ async function pollInteraction(client, interactionId, config) {
 }
 
 async function runResearch(config) {
-  const keys = geminiKeys();
-  const prompt = buildLeadPrompt(config);
-  let last;
-  for (let step = 0; step < Math.max(keys.length, 1); step += 1) {
-    const apiKey = keys[step] || config.apiKey;
-    const client = await createClient(apiKey);
-    try {
-      return await researchWith(client, config, prompt);
-    } catch (error) {
-      last = error;
-      if (!isQuota(error) || step >= keys.length - 1) {
-        if (isQuota(error)) {
-          const busy = new Error('The research desk is busy. Try again in a minute. Nothing was written.');
-          busy.code = 'quota';
-          throw busy;
-        }
-        throw error;
-      }
-    }
-  }
-  throw last;
-}
-
-async function researchWith(client, config, prompt) {
+  const client = await createClient(config.apiKey);
   let interactionId = config.resumeId;
+  const prompt = buildLeadPrompt(config);
 
   if (!interactionId) {
     const created = await client.interactions.create({

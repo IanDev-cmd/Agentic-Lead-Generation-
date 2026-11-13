@@ -32,9 +32,8 @@ test('the brief is built from stored leads and does not invent a start', () => {
 });
 
 test('a territory brief without a Gemini key asks for nothing', async () => {
-  const names = ['GEMINI_API_KEY', 'GEMINI_API_KEY_1', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5'];
-  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-  for (const name of names) process.env[name] = '';
+  const previous = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = '';
   const { createDeskServer } = await import('../server.js');
   const server = createDeskServer();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -52,10 +51,8 @@ test('a territory brief without a Gemini key asks for nothing', async () => {
     assert.match(body.error, /GEMINI_API_KEY is empty/);
     assert.equal(body.brief, undefined);
   } finally {
-    for (const name of names) {
-      if (previous[name] == null) delete process.env[name];
-      else process.env[name] = previous[name];
-    }
+    if (previous == null) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previous;
     await new Promise((resolve) => server.close(resolve));
   }
 });
