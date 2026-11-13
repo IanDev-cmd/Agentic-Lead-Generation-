@@ -1987,7 +1987,7 @@ function bindAgent(channel) {
       const response = await postDesk("/api/agents/search", { channel, query, ...profileBody() });
       const body = await response.json();
       if (!response.ok || !body.ok) {
-        status.textContent = body.error || "The agent did not answer. Nothing was saved.";
+        status.textContent = spoken(body.error || body.explanation || "The research desk is busy. Try again in a minute. Nothing was written.");
         return;
       }
       paintAgent(channel, body);
@@ -2261,6 +2261,13 @@ async function resolveLeadPhoto(lead) {
     /* the photo already on the lead stays */
   }
 }
+function spoken(text) {
+  const value = String(text || "").trim();
+  if (!value || value.charAt(0) === "{" || /exceeded your current quota|resource_exhausted|"code":429/i.test(value)) {
+    return "The research desk is busy. Try again in a minute. Nothing was written.";
+  }
+  return value;
+}
 function scrollToContact() {
   document.getElementById("leadContact").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
@@ -2302,13 +2309,13 @@ document.getElementById("askForm").onsubmit = async (event) => {
     const body = await response.json();
     if (!response.ok || !body.ok) {
       const reply = document.createElement("p");
-      reply.textContent = body.error || "Gemini did not answer. Nothing was written to Sheets.";
+      reply.textContent = spoken(body.error || body.explanation || "The research desk is busy. Try again in a minute. Nothing was written.");
       box.append(reply);
       toast(reply.textContent);
       return;
     }
     const reply = document.createElement("p");
-    reply.textContent = body.explanation || "Gemini returned no explanation.";
+    reply.textContent = spoken(body.explanation || "Gemini returned no explanation.");
     box.append(reply);
     addBatch(text, body.explanation || "", body.leads || []);
   } catch (error) {

@@ -4,13 +4,14 @@ import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
-import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
+import { businessEnv, deskAuthorized, executeRun } from './lib/desk-run.js';
 import { geocodeStoredLeads, searchAddresses } from './lib/geocode.js';
 import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
 import { postAppsScript } from './lib/webhook.js';
 import { askSources } from './lib/ask.js';
 import { companyLeads, runAgentSearch } from './lib/agents.js';
+import { deskText, geminiKeys, rotatingAi } from './lib/keys.js';
 import { resolveMark } from './lib/mark.js';
 import { deleteUpload, loadUpload, saveUploads, uploadPart } from './lib/uploads.js';
 import QRCode from 'qrcode';
@@ -263,23 +264,22 @@ async function handleApi(request, response, url) {
       && Math.abs(Number(rawStart.lat)) <= 90 && Math.abs(Number(rawStart.lng)) <= 180
       ? { lat: Number(rawStart.lat), lng: Number(rawStart.lng) }
       : null;
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
-    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+    const keys = geminiKeys();
+    if (!keys.length) {
       send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was asked.' });
       return;
     }
     try {
       const facts = territoryFacts(root, start);
       const brief = await narrateTerritory({
-        apiKey,
+        apiKey: keys[0],
+        ai: rotatingAi(keys),
         model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         facts,
       });
       send(response, 200, { ok: true, brief });
-    } catch (error) {
-      const secrets = [apiKey, process.env.WEBHOOK_SECRET, process.env.DESK_TOKEN].filter(Boolean);
-      const message = error instanceof Error ? error.message : 'Gemini refused the request.';
-      send(response, 502, { ok: false, error: redactSecrets(message, secrets) });
+    } catch {
+      send(response, 200, { ok: true, brief: deskText() });
     }
     return;
   }
@@ -334,14 +334,15 @@ async function handleApi(request, response, url) {
       send(response, 422, { ok: false, error: 'The agent needs a topic. Nothing was searched.' });
       return;
     }
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
-    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+    const keys = geminiKeys();
+    if (!keys.length) {
       send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was searched.' });
       return;
     }
     try {
       const found = await runAgentSearch({
-        apiKey,
+        apiKey: keys[0],
+        ai: rotatingAi(keys),
         model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         query,
         channel,
@@ -357,9 +358,16 @@ async function handleApi(request, response, url) {
         people: found.people,
         leads,
       });
-    } catch (error) {
-      const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
-      send(response, 502, { ok: false, error: message || 'The agent did not answer. Nothing was saved.' });
+    } catch {
+      send(response, 200, {
+        ok: true,
+        channel,
+        keywords: [],
+        explanation: deskText(),
+        companies: [],
+        people: [],
+        leads: [],
+      });
     }
     return;
   }
@@ -376,8 +384,8 @@ async function handleApi(request, response, url) {
       send(response, 422, { ok: false, error: 'The question was empty. Nothing was asked.' });
       return;
     }
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
-    if (!apiKey || /^(your-|paste-)/i.test(apiKey)) {
+    const keys = geminiKeys();
+    if (!keys.length) {
       send(response, 424, { ok: false, error: 'GEMINI_API_KEY is empty. Nothing was asked.' });
       return;
     }
@@ -395,7 +403,8 @@ async function handleApi(request, response, url) {
     try {
       const built = partsForAsk(uploads, texts);
       const answer = await askSources({
-        apiKey,
+        apiKey: keys[0],
+        ai: rotatingAi(keys),
         model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
         question,
         profile: businessEnv(body),
@@ -413,9 +422,8 @@ async function handleApi(request, response, url) {
         });
       }
       send(response, 200, { ok: true, explanation, leads });
-    } catch (error) {
-      const message = redactSecrets(error instanceof Error ? error.message : '', [apiKey]).slice(0, 300);
-      send(response, 502, { ok: false, error: message || 'Gemini did not answer. Nothing was written to Sheets.' });
+    } catch {
+      send(response, 200, { ok: true, explanation: deskText(), leads: [] });
     }
     return;
   }
