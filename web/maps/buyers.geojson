@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [36.8219, -1.2921]}, "properties": {"name": "Nairobi", "band": "Primary", "note": "Primary buyer market for dashboards, data engineering, and public-sector reporting."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [39.6682, -4.0435]}, "properties": {"name": "Mombasa", "band": "Primary", "note": "Coastal trade and county offices that still run manual operational reports."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [34.768, -0.0917]}, "properties": {"name": "Kisumu", "band": "Primary", "note": "Lake region buyers for branch reporting and shared data."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [36.08, -0.3031]}, "properties": {"name": "Nakuru", "band": "Primary", "note": "Growing county and agribusiness reporting load."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [35.2698, 0.5143]}, "properties": {"name": "Eldoret", "band": "Primary", "note": "Rift Valley buyers adding sites and needing one view of operations."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [-0.1278, 51.5074]}, "properties": {"name": "London", "band": "Wider", "note": "Wider-market buyers after the primary region is filled."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [28.0473, -26.2041]}, "properties": {"name": "Johannesburg", "band": "Wider", "note": "Regional headquarters that buy analytics alongside East African work."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [3.3792, 6.5244]}, "properties": {"name": "Lagos", "band": "Wider", "note": "West African operators with the same reporting load."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [55.2708, 25.2048]}, "properties": {"name": "Dubai", "band": "Wider", "note": "Regional hubs that coordinate multi-country reporting."}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [103.8198, 1.3521]}, "properties": {"name": "Singapore", "band": "Wider", "note": "Asia-Pacific buyers for data platforms and shared dashboards."}}
+  ]
+}

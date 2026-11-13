@@ -10,10 +10,10 @@ test('enter opens research, with leads, territory, and analytics', () => {
   assert.match(page, /id="view-analytics"/);
   assert.match(page, /sheetButton\.closest\("#toolGrid"\)\) \{\s*openSheet\(sheetButton\.dataset\.sheet\);/);
   assert.match(page, /id="view-strategy"/);
-  assert.match(page, /class="territory"/);
-  assert.match(page, /Territory\.destroy\(\)/);
+  assert.match(page, /class="maps-page"/);
+  assert.match(page, /DeskMap\.destroy\(\)/);
   assert.match(page, /is-wide/);
-  assert.match(page, /src="\/territory\.js/);
+  assert.match(page, /src="\/maps\.js/);
   assert.match(page, />Analytics</);
   assert.equal(page.includes('id="view-pains"'), false);
   assert.equal(page.includes('id="view-priority"'), false);

@@ -492,7 +492,7 @@
     display: grid; place-items: center; color: #fff; box-shadow: 0 0 0 2px #fff;
   }
   .query-pip svg { width: 12px; height: 12px; }
-  .query-pip.is-fly { animation: bombard .55s ease-out; }
+  .query-pip.is-fly { animation: none; }
   .gem-glow::before {
     content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px;
     background: conic-gradient(#4285F4, #EA4335, #F9AB00, #FBBC05, #34A853, #4285F4);
@@ -500,7 +500,7 @@
     -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask-composite: exclude; opacity: 0; pointer-events: none;
   }
-  body.is-thinking .gem-glow::before { opacity: 1; animation: gem-spin 2.4s linear infinite, gem-breathe 1.6s ease-in-out infinite; }
+  body.is-thinking .gem-glow::before { opacity: 1; animation: none; }
   @keyframes gem-spin { to { transform: rotate(1turn); } }
   @keyframes gem-breathe { 50% { filter: drop-shadow(0 0 8px rgba(66, 133, 244, 0.55)); } }
   @keyframes bombard { from { transform: translateX(72px) scale(.35) rotate(-18deg); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -630,7 +630,14 @@
     position: fixed; inset: 0; z-index: 12; width: 100%; max-width: none; margin: 0;
     padding: 76px 20px 28px; overflow: auto; background: #f6f7f9;
   }
-  #view-map .territory-map { height: min(72dvh, 760px); min-height: 420px; }
+  #view-map .maps-page { height: calc(100dvh - 104px); display: flex; flex-direction: column; gap: 10px; }
+  #view-map .maps-bar { display: flex; gap: 8px; }
+  #view-map .maps-bar button {
+    border: 0; background: #fff; border-radius: 999px; padding: 8px 14px;
+    font: 600 13px Inter, sans-serif; color: #202124; cursor: pointer;
+  }
+  #view-map .maps-bar button.on { background: #1a73e8; color: #fff; }
+  #view-map .desk-map { flex: 1; min-height: 420px; border-radius: 16px; overflow: hidden; background: #e8eaed; }
   .desk.is-lead .home-link,
   .desk.is-lead .top .icon-btn,
   .desk.is-lead .top .settings-btn,
@@ -956,10 +963,6 @@
 <a class="skip" href="#main">Skip to the desk</a>
 <section id="gate" class="scene" aria-label="Lead desk">
   <div class="welcome-hero">
-    <div class="welcome-orb">
-      <canvas id="welcomeFrom" aria-hidden="true"></canvas>
-      <canvas id="welcomeTo" aria-hidden="true"></canvas>
-    </div>
     <div class="welcome-logo" id="welcomeLogo"></div>
     <button type="button" class="enter welcome-enter" id="welcomeEnter">Enter</button>
   </div>
@@ -1028,7 +1031,7 @@
     <button type="button" data-view="accounts">Leads</button>
     <button type="button" data-view="analytics">Analytics</button>
     <button type="button" data-view="strategy">Strategy</button>
-    <button type="button" data-view="map">Territory</button>
+    <button type="button" data-view="map">Maps</button>
     <button type="button" data-view="workspace">Workspace</button>
     <button type="button" data-view="linkedin">LinkedIn</button>
     <button type="button" data-view="social">Social</button>
@@ -1091,13 +1094,6 @@
             </div>
           </div>
           <div class="doc-text" id="docText"></div>
-          <div class="think-stage" id="thinkStage" hidden>
-            <div class="think-orb" id="thinkOrb">
-              <canvas id="thinkFrom" aria-hidden="true"></canvas>
-              <canvas id="thinkTo" aria-hidden="true"></canvas>
-            </div>
-            <p class="think-line" id="thinkLine" aria-live="polite"></p>
-          </div>
         </div>
         <div class="studio-dock">
           <form class="studio-ask gem-glow" id="askForm">
@@ -1157,7 +1153,7 @@
     </section>
 
     <section class="view" id="view-map" hidden>
-      <div class="territory" id="territoryPage"></div>
+      <div class="maps-page" id="mapsPage"></div>
     </section>
 
     <section class="view radar-view" id="view-analytics" hidden></section>
@@ -1306,8 +1302,7 @@
 import * as Geo from "/geo.js?v=1";
 window.Geo = Geo;
 </script>
-<script src="/territory.js?v=7"></script>
-<script src="/orbs.js?v=1"></script>
+<script src="/maps.js?v=1"></script>
 <script src="/radar.js?v=3"></script>
 <script>
 const brandPath = {
@@ -1364,13 +1359,13 @@ const tiles = [
   { view: "accounts", title: "Leads", copy: "Companies in this batch", icon: "sparkles", color: "#174ea6" },
   { view: "workspace", title: "Google Workspace", copy: "Sheets, Docs, and Drive", icon: "sheets" },
   { view: "analytics", title: "Analytics", copy: "ICP match and review stages", icon: "sparkles", color: "#1a73e8" },
-  { view: "map", title: "Territory", copy: "Headquarters for local sales", icon: "pin", color: "#d01884" },
+  { view: "map", title: "Maps", copy: "Buyer markets on the 2D map", icon: "pin", color: "#d01884" },
   { view: "strategy", title: "Strategy", copy: "Market pipeline", icon: "activity", color: "#1e8e3e" },
   { view: "linkedin", title: "LinkedIn", copy: "Companies and people", icon: "users", color: "#0a66c2" },
   { view: "social", title: "Social", copy: "Other public platforms", icon: "sparkles", color: "#e37400" }
 ];
 const tools = [
-  { sheet: "map", title: "Territory", copy: "Headquarters map", icon: "map", color: "#1a73e8" },
+  { sheet: "map", title: "Maps", copy: "Open the 2D buyer map", icon: "map", color: "#1a73e8" },
   { sheet: "report", title: "Briefings", copy: "Google Docs", icon: "docs" },
   { sheet: "slides", title: "Pitch deck", copy: "Google Slides", icon: "slides", color: "#f9ab00" },
   { sheet: "pipeline", title: "Directory", copy: "Google Sheet rows", icon: "bars", color: "#d93025" },
@@ -1385,7 +1380,7 @@ const menuItems = [
   ["workspace", "Google Workspace"],
   ["analytics", "Analytics"],
   ["strategy", "Strategy"],
-  ["map", "Territory"],
+  ["map", "Maps"],
   ["linkedin", "LinkedIn"],
   ["social", "Social"],
   ["draft", "Gmail draft"]
@@ -1397,7 +1392,7 @@ const dotViews = [
   ["workspace", "Google Workspace"],
   ["analytics", "Analytics"],
   ["strategy", "Strategy"],
-  ["map", "Territory"],
+  ["map", "Maps"],
   ["linkedin", "LinkedIn"],
   ["social", "Social"]
 ];
@@ -1410,7 +1405,7 @@ let phase = "idle";
 let selected = null;
 function pickLead(lead) {
   selected = lead || null;
-  if (window.Territory && window.Territory.sync) window.Territory.sync();
+  if (window.DeskMap && document.getElementById("view-map") && !document.getElementById("view-map").hidden) renderMap();
 }
 const phases = [
   ["plan", "Planning"],
@@ -1504,7 +1499,6 @@ function openDesk() {
   gate.hidden = true;
   document.getElementById("desk").hidden = false;
   show("studio");
-  stopWelcomeOrb();
   document.getElementById("deskTitle").focus();
 }
 const sheetMeta = {
@@ -1516,7 +1510,7 @@ const sheetMeta = {
   workspace: ["Google Sheets", "Data table"],
   tasks: ["Google Tasks", "Tasks"],
   draft: ["Google Gmail", "Email"],
-  map: ["Territory", "Headquarters"]
+  map: ["Maps", "Buyer markets"]
 };
 function inSheet() {
   return document.getElementById("studioDrawer").classList.contains("is-open");
@@ -1543,7 +1537,7 @@ function drawerBody(name) {
     return leads.map(marketDoc).join("") || "<p>No lead is on the desk yet. A go-to-market note is written only for a company already in this batch.</p>";
   }
   if (name === "pipeline") return leads.map((lead) => card(lead)).join("");
-  if (name === "map") return '<div class="territory"></div>';
+  if (name === "map") return "<p>The map opens as its own page.</p>";
   return "<p>No preview is on the desk yet.</p>";
 }
 function pitchDeck(lead) {
@@ -1588,13 +1582,15 @@ function researchBody(heading, lede) {
   return `<p><b>${escapeHtml(heading)}</b></p><p>${escapeHtml(lede)}</p><div class="actions"><button type="button" data-sim="runResearch">Run research</button><button type="button" data-sim="simLimit">Show rate limit</button><button type="button" data-sim="simTimeout">Show timeout</button><button type="button" data-sim="simResume">Resume batch</button></div>`;
 }
 function closeSheet() {
-  if (window.Territory) window.Territory.destroy();
   const drawer = document.getElementById("studioDrawer");
   drawer.classList.remove("is-open", "is-wide");
   drawer.setAttribute("aria-hidden", "true");
 }
 function openSheet(name) {
-  if (window.Territory) window.Territory.destroy();
+  if (name === "map") {
+    show("map");
+    return;
+  }
   const pair = sheetMeta[name] || ["Studio", "Preview"];
   const drawer = document.getElementById("studioDrawer");
   document.getElementById("studioDrawerKicker").textContent = pair[0];
@@ -1606,26 +1602,6 @@ function openSheet(name) {
   drawer.classList.remove("is-open");
   void drawer.offsetWidth;
   drawer.classList.add("is-open");
-  if (name === "map" && window.Territory) {
-    window.Territory.mount(document.querySelector("#studioDrawerBody .territory"), {
-      getLeads: () => batchLeads(),
-      safeUrl,
-      openLead(lead) {
-        pickLead(lead);
-        show("lead");
-      },
-      getSelected: () => selected,
-      setLive,
-      applyLeads(incoming) {
-        if (!Array.isArray(incoming)) return;
-        for (const next of incoming) {
-          const index = leads.findIndex((item) => item.id === next.id);
-          if (index >= 0) leads[index] = next;
-          else leads.push(next);
-        }
-      },
-    });
-  }
 }
 function paintView(name) {
   if (name === "analytics" && window.Radar) {
@@ -1633,6 +1609,7 @@ function paintView(name) {
   }
   if (name === "accounts") renderAccounts();
   if (name === "map") renderMap();
+  else if (window.DeskMap) window.DeskMap.destroy();
   if (name === "workspace") renderWorkspace();
   if (name === "studio") renderSources();
   if (name === "strategy") renderStrategy();
@@ -1673,7 +1650,7 @@ function reveal(name) {
 }
 document.getElementById("studioDrawerClose").onclick = () => closeSheet(false);
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && window.Territory && window.Territory.consumeEscape()) return;
+  if (event.key === "Escape" && document.body.classList.contains("is-map")) { show("home"); return; }
   if (event.key === "Escape" && inSheet()) closeSheet(false);
   if (event.key === "Escape" && window.closeSettings) window.closeSettings();
 });
@@ -1917,20 +1894,40 @@ function deskSend(method, url, body, allowRetry) {
 function postDesk(url, body) {
   return deskSend("POST", url, body, true);
 }
+function agentLogo(row) {
+  if (row.photo && /^https?:/i.test(row.photo)) return row.photo;
+  return leadLogo({ website: row.url || "", domain: row.domain || "", photo: "" });
+}
 function agentCard(row) {
   const meta = [row.role, row.platform, row.note].filter(Boolean).join(" · ");
   const href = /^https?:\/\//i.test(row.url || "") ? row.url : "";
+  const logo = agentLogo(row);
+  const letter = escapeHtml((row.name || "?").slice(0, 1));
+  const mark = logo ? `<img src="${escapeHtml(logo)}" alt="">` : `<b class="logo-letter">${letter}</b>`;
   const open = href
     ? `<a class="file-card" href="${escapeHtml(href)}" target="_blank" rel="noopener">`
     : `<div class="file-card">`;
   const close = href ? "</a>" : "</div>";
-  return `${open}<span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(meta || "Public page")}</small></span>${close}`;
+  return `${open}<span class="file-ico">${mark}</span><span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(meta || "Public page")}</small></span>${close}`;
+}
+function bindAgentLogos(root) {
+  root.querySelectorAll("img").forEach((img) => {
+    img.onerror = () => {
+      const name = img.closest(".file-card").querySelector("span b");
+      const fallback = document.createElement("b");
+      fallback.className = "logo-letter";
+      fallback.textContent = (name ? name.textContent : "?").slice(0, 1);
+      img.replaceWith(fallback);
+    };
+  });
 }
 function paintAgent(channel, body) {
   document.getElementById(channel + "Keys").innerHTML = (body.keywords || []).map((keyword) => `<span>${escapeHtml(keyword)}</span>`).join("");
   const companies = (body.companies || []).map(agentCard).join("") || `<p class="file-sub">No companies came back.</p>`;
   const people = (body.people || []).map(agentCard).join("") || `<p class="file-sub">No people came back.</p>`;
-  document.getElementById(channel + "Results").innerHTML = `<p class="agent-block">COMPANIES</p>${companies}<p class="agent-block">PEOPLE</p>${people}`;
+  const results = document.getElementById(channel + "Results");
+  results.innerHTML = `<p class="agent-block">COMPANIES</p>${companies}<p class="agent-block">PEOPLE</p>${people}`;
+  bindAgentLogos(results);
   document.getElementById(channel + "Status").textContent = body.explanation || "Search finished. Nothing was posted.";
 }
 function bindAgent(channel) {
@@ -2338,188 +2335,18 @@ function renderAccounts() {
   });
 }
 function renderMap() {
-  const host = document.getElementById("territoryPage");
-  if (!host || !window.Territory) return;
-  host.replaceChildren();
-  window.Territory.mount(host, {
+  const host = document.getElementById("mapsPage");
+  if (!host || !window.DeskMap) return;
+  window.DeskMap.mount(host, {
     getLeads: () => batchLeads(),
-    safeUrl,
     openLead(lead) {
       pickLead(lead);
       show("lead");
     },
-    getSelected: () => selected,
-    setLive,
-    applyLeads(incoming) {
-      if (!Array.isArray(incoming)) return;
-      for (const next of incoming) {
-        const index = leads.findIndex((item) => item.id === next.id);
-        if (index >= 0) leads[index] = next;
-        else leads.push(next);
-      }
-    },
   });
 }
-const researchPips = [
-  ["#e2157b", "clock"],
-  ["#34a853", "dollar"],
-  ["#1a73e8", "people"],
-  ["#f9ab00", "news"],
-  ["#9334e6", "spark"],
-  ["#ea4335", "pin"]
-];
-const pipMarks = {
-  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>',
-  dollar: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3v18M16 7.5c0-1.5-1.8-2.5-4-2.5s-4 1-4 2.5 1.8 2.5 4 2.5 4 1 4 2.5-1.8 2.5-4 2.5-4-1-4-2.5"/></svg>',
-  people: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 19c1-3 3-4 6-4s5 1 6 4"/><circle cx="17" cy="9" r="2"/><path d="M16 15c2 0 4 1 5 3"/></svg>',
-  news: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M5 4h11v16H5z"/><path d="M16 8h3v12H8"/></svg>',
-  spark: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.6 6.2L20 10l-6.4 1.8L12 18l-1.6-6.2L4 10l6.4-1.8z"/></svg>',
-  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"/><circle cx="12" cy="11" r="2"/></svg>'
-};
-let bombardTimer = 0;
-function makePip(spec, fly) {
-  const pip = document.createElement("span");
-  pip.className = fly ? "query-pip is-fly" : "query-pip";
-  pip.style.background = spec[0];
-  pip.innerHTML = pipMarks[spec[1]];
-  return pip;
-}
-const thinkStates = ["searching", "solving", "listening", "connecting", "weaving", "composing"];
-const thinkLines = [
-  "Analyzing the ICP criteria",
-  "Checking hard disqualifiers first",
-  "Scanning recent press releases",
-  "Cross-referencing the company's 'About' page",
-  "Argument for inclusion",
-  "Mapping observed signal to product value",
-  "Discarding generic company milestones"
-];
-let thinkFrame = 0;
-let thinkStarted = 0;
-let thinkLineAt = -1;
-const thinkHold = 2200;
-const thinkFade = 900;
-function paintThinkCanvas(canvas, preset, time, alpha, lightInk) {
-  const logical = 64;
-  const css = canvas.clientWidth || 420;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const px = Math.max(2, Math.round(css * dpr));
-  if (canvas.width !== px || canvas.height !== px) {
-    canvas.width = px;
-    canvas.height = px;
-  }
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(px / logical, 0, 0, px / logical, 0, 0);
-  ctx.clearRect(0, 0, logical, logical);
-  ctx.globalAlpha = alpha;
-  window.Orbs.MODE_DRAWS[preset.mode](ctx, logical, time * preset.speed, Boolean(lightInk), preset.opts);
-  ctx.globalAlpha = 1;
-}
-let welcomeFrame = 0;
-function stopWelcomeOrb() {
-  cancelAnimationFrame(welcomeFrame);
-  welcomeFrame = 0;
-}
-function phoneDesk() {
-  return window.matchMedia("(max-width: 800px)").matches;
-}
-function startWelcomeOrb() {
-  if (!phoneDesk() || !window.Orbs || document.getElementById("gate").hidden) return;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const started = performance.now();
-  const tick = (now) => {
-    if (document.getElementById("gate").hidden) return;
-    const elapsed = Math.max(0, now - started);
-    const span = reduce ? 4000 : thinkHold + thinkFade;
-    const slot = elapsed % (span * thinkStates.length);
-    const index = Math.floor(slot / span);
-    const local = slot - index * span;
-    const blend = reduce || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
-    const from = window.Orbs.resolvePreset(thinkStates[index], 64);
-    const to = window.Orbs.resolvePreset(thinkStates[(index + 1) % thinkStates.length], 64);
-    const t = reduce ? 1.4 : elapsed / 1000;
-    paintThinkCanvas(document.getElementById("welcomeFrom"), from, t, 1 - blend, true);
-    paintThinkCanvas(document.getElementById("welcomeTo"), to, t, blend > 0 ? blend : 0, true);
-    welcomeFrame = requestAnimationFrame(tick);
-  };
-  stopWelcomeOrb();
-  tick(started);
-}
-function startThinkOrb() {
-  const stage = document.getElementById("thinkStage");
-  if (!stage || !window.Orbs) return;
-  stage.hidden = false;
-  thinkStarted = performance.now();
-  thinkLineAt = -1;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const animate = phoneDesk() && !reduce;
-  const tick = (now) => {
-    if (!document.body.classList.contains("is-thinking")) return;
-    const elapsed = Math.max(0, now - thinkStarted);
-    const line = Math.floor(elapsed / 2400) % thinkLines.length;
-    const node = document.getElementById("thinkLine");
-    if (line !== thinkLineAt) {
-      thinkLineAt = line;
-      node.textContent = thinkLines[line];
-    }
-    const fromCanvas = document.getElementById("thinkFrom");
-    const toCanvas = document.getElementById("thinkTo");
-    const span = animate ? thinkHold + thinkFade : 4000;
-    const slot = elapsed % (span * thinkStates.length);
-    const index = Math.floor(slot / span);
-    const local = slot - index * span;
-    const blend = !animate || local <= thinkHold ? 0 : (local - thinkHold) / thinkFade;
-    const from = window.Orbs.resolvePreset(thinkStates[index], 64);
-    const to = window.Orbs.resolvePreset(thinkStates[(index + 1) % thinkStates.length], 64);
-    const t = animate ? elapsed / 1000 : 1.4;
-    paintThinkCanvas(fromCanvas, from, t, 1 - blend);
-    paintThinkCanvas(toCanvas, to, t, blend > 0 ? blend : 0);
-    thinkFrame = requestAnimationFrame(tick);
-  };
-  cancelAnimationFrame(thinkFrame);
-  tick(thinkStarted);
-}
-function stopThinkOrb() {
-  cancelAnimationFrame(thinkFrame);
-  thinkFrame = 0;
-  const stage = document.getElementById("thinkStage");
-  if (stage) stage.hidden = true;
-}
-function startResearchGlow() {
-  const form = document.getElementById("askForm");
-  const rail = document.getElementById("queryRail");
-  document.body.classList.add("is-thinking");
-  form.classList.add("is-querying");
-  startThinkOrb();
-  rail.hidden = false;
-  rail.innerHTML = "";
-  clearInterval(bombardTimer);
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    researchPips.forEach((spec) => rail.append(makePip(spec, false)));
-    return;
-  }
-  let index = 0;
-  bombardTimer = setInterval(() => {
-    const spec = researchPips[index % researchPips.length];
-    rail.append(makePip(spec, true));
-    index += 1;
-    while (rail.children.length > 7) rail.firstElementChild.remove();
-  }, 130);
-}
-function stopResearchGlow() {
-  clearInterval(bombardTimer);
-  stopThinkOrb();
-  document.body.classList.remove("is-thinking");
-  document.getElementById("askForm").classList.remove("is-querying");
-  const rail = document.getElementById("queryRail");
-  rail.querySelectorAll(".query-pip").forEach((pip) => pip.classList.remove("is-fly"));
-  setTimeout(() => {
-    if (!document.body.classList.contains("is-thinking")) {
-      rail.hidden = true;
-      rail.innerHTML = "";
-    }
-  }, 600);
-}
+function startResearchGlow() {}
+function stopResearchGlow() {}
 const googleApps = { map: "maps", report: "briefings", slides: "slides", pipeline: "sheet", run: "sheet", workspace: "sheet", tasks: "tasks", draft: "drafts" };
 async function openGoogleApp(sheet) {
   const key = googleApps[sheet] || "sheet";
@@ -2598,7 +2425,6 @@ async function loadDesk() {
     gate.hidden = true;
     document.getElementById("desk").hidden = false;
     show(requested);
-    stopWelcomeOrb();
     return;
   }
   if (!document.getElementById("view-studio").hidden) paintView("studio");
@@ -2698,7 +2524,6 @@ document.querySelectorAll("[data-notes]").forEach((button) => {
     note.hidden = !note.hidden;
   };
 });
-startWelcomeOrb();
 loadDesk().catch(() => toast("The lead list did not load. Nothing was written to Sheets."));
 </script>
 <script src="/pwa.js"></script>

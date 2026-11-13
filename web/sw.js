@@ -1,4 +1,4 @@
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL = `lead-shell-${VERSION}`;
 const RUNTIME = `lead-runtime-${VERSION}`;
 const PRECACHE = [
@@ -7,7 +7,8 @@ const PRECACHE = [
   '/manifest.webmanifest',
   '/pwa.js',
   '/bg.jpg',
-  '/orbs.js',
+  '/maps.js',
+  '/maps/buyers.geojson',
   '/icons/alpha.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
