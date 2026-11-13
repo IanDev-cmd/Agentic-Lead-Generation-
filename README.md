@@ -23,7 +23,7 @@ Apps Script doPost
   Sheets  Docs  Drive  Gmail draft  Maps  Calendar  Tasks
 ```
 
-`gemini-2.5-flash` grounding on the free tier is 500 requests per day, shared with Flash-Lite. The 5,000-search monthly figure on Google's pricing page applies to Gemini 3 and newer models. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
+`FREE_MODEL` defaults to `gemini-3.8-flash`. Google no longer serves `gemini-2.5-flash` to new users. Billing stays off: `BILLING_ENABLED` remains false, so this is the free Gemini API, not Deep Research. Gemini 3 grounding, when the free tier allows it, is 1,500 requests per day and 5,000 per month. The fallback records grounded calls in `output/grounding-quota.json` and stops at the published cap for `FREE_MODEL`.
 
 ## Lead engine
 
