@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { businessEnv, deskAuthorized, executeRun, redactSecrets } from './lib/desk-run.js';
+import { configuredModel } from './lib/pipeline/gemini.js';
 import { geocodeStoredLeads, searchAddresses } from './lib/geocode.js';
 import { narrateTerritory, territoryFacts } from './lib/territory-brief.js';
 import { allLeads, findLead, rememberLeads } from './lib/lead-store.js';
@@ -272,7 +273,7 @@ async function handleApi(request, response, url) {
       const facts = territoryFacts(root, start);
       const brief = await narrateTerritory({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: configuredModel(),
         facts,
       });
       send(response, 200, { ok: true, brief });
@@ -342,7 +343,7 @@ async function handleApi(request, response, url) {
     try {
       const found = await runAgentSearch({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: configuredModel(),
         query,
         channel,
         profile: businessEnv(body),
@@ -396,7 +397,7 @@ async function handleApi(request, response, url) {
       const built = partsForAsk(uploads, texts);
       const answer = await askSources({
         apiKey,
-        model: (process.env.FREE_MODEL || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash',
+        model: configuredModel(),
         question,
         profile: businessEnv(body),
         parts: built.parts,

@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from fallback.models import model_chain
+
 
 def load_dotenv(path: Path) -> None:
     if not path.is_file():
@@ -87,7 +89,7 @@ class Settings:
             force_free=flag("FORCE_FREE_TIER"),
             verify_billing=flag("VERIFY_BILLING") if "VERIFY_BILLING" in os.environ else True,
             demo_mode=flag("DEMO_MODE"),
-            model=os.environ.get("FREE_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
+            model=model_chain(os.environ.get("FREE_MODEL", ""))[0],
             industry=clean_text(os.environ.get("TARGET_INDUSTRY", ""), 200),
             region=clean_text(os.environ.get("TARGET_REGION", ""), 200) or "any region",
             offering=clean_text(os.environ.get("SELLER_OFFERING", ""), 500),

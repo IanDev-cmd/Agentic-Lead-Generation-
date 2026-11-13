@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 from fallback.config import Settings, is_placeholder
 from fallback.decide import _redact
+from fallback.models import generate_with_fallback, http_status
 from fallback.quota import GroundingQuota, QuotaExceeded
 
 log = logging.getLogger("fallback.pipeline")
@@ -398,67 +399,51 @@ def _generate(client, settings: Settings, prompt: str, *, grounded: bool, max_to
     if grounded:
         config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
         config_kwargs["temperature"] = 1.0
-    delay = 2.0
-    last_error: Exception | None = None
-    for attempt in range(1, 4):
-        try:
-            response = client.models.generate_content(
-                model=settings.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config_kwargs),
-            )
-            text = (getattr(response, "text", None) or "").strip()
-            if not text:
-                raise PipelineError("The model returned an empty response.")
-            return text
-        except PipelineError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            if not _retryable(exc) or attempt == 3:
-                break
-            log.warning("Model call failed (%s). Retrying in %.0fs.", exc, delay)
-            time.sleep(delay)
-            delay = min(20.0, delay * 2)
-    raise PipelineError(str(last_error or "model call failed"))
+    try:
+        response = generate_with_fallback(
+            client,
+            contents=prompt,
+            config=types.GenerateContentConfig(**config_kwargs),
+            model=settings.model,
+        )
+    except PipelineError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise PipelineError(str(exc)) from exc
+    text = (getattr(response, "text", None) or "").strip()
+    if not text:
+        raise PipelineError("The model returned an empty response.")
+    return text
 
 
 def _grounded_generate(client, settings: Settings, quota: GroundingQuota, prompt: str) -> tuple[str, list[str]]:
     from google.genai import types
 
-    delay = 2.0
-    last_error: Exception | None = None
-    for attempt in range(1, 4):
-        if not quota.allow():
-            raise QuotaExceeded(quota.limits.note)
-        try:
-            response = client.models.generate_content(
-                model=settings.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                    temperature=1.0,
-                    max_output_tokens=2048,
-                ),
-            )
-            quota.commit()
-            text = (getattr(response, "text", None) or "").strip()
-            if not text:
-                raise PipelineError("Grounded search returned an empty response.")
-            return text, _sources(response)
-        except QuotaExceeded:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            if _quota_exhausted(exc):
-                quota.exhaust_today()
-                raise QuotaExceeded(str(exc)) from exc
-            if not _retryable(exc) or attempt == 3:
-                break
-            log.warning("Grounded search failed (%s). Retrying in %.0fs.", exc, delay)
-            time.sleep(delay)
-            delay = min(20.0, delay * 2)
-    raise PipelineError(str(last_error or "grounded search failed"))
+    if not quota.allow():
+        raise QuotaExceeded(quota.limits.note)
+    try:
+        response = generate_with_fallback(
+            client,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=1.0,
+                max_output_tokens=2048,
+            ),
+            model=settings.model,
+        )
+    except QuotaExceeded:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        if _quota_exhausted(exc) or http_status(exc) == 429:
+            quota.exhaust_today()
+            raise QuotaExceeded(str(exc)) from exc
+        raise PipelineError(str(exc)) from exc
+    quota.commit()
+    text = (getattr(response, "text", None) or "").strip()
+    if not text:
+        raise PipelineError("Grounded search returned an empty response.")
+    return text, _sources(response)
 
 
 def _sources(response) -> list[str]:

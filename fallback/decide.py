@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 
 from fallback.config import Settings, is_placeholder
+from fallback.models import generate_with_fallback
 from fallback.scan import RepoScan
 
 log = logging.getLogger("fallback.decide")
@@ -79,10 +80,11 @@ def probe_key(settings: Settings) -> str:
         return "sdk_missing"
     try:
         client = genai.Client(api_key=settings.api_key)
-        client.models.generate_content(
-            model=settings.model,
+        generate_with_fallback(
+            client,
             contents="Reply with the single word ok.",
             config=types.GenerateContentConfig(max_output_tokens=16, temperature=0),
+            model=settings.model,
         )
         return "ok"
     except Exception as exc:  # noqa: BLE001 - the SDK raises several error types
